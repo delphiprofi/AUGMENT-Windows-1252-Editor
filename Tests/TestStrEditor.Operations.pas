@@ -6,6 +6,7 @@ Uses
   DUnitX.TestFramework
 , System.SysUtils
 , System.Classes
+, System.IOUtils
 , StrEditor.Encoding
 , StrEditor.Operations
 ;
@@ -80,6 +81,45 @@ Type
 
       [Test]
       procedure TestShow_SingleLine;
+
+      [Test]
+      procedure TestConvertEncoding_UTF8ToWindows1252;
+
+      [Test]
+      procedure TestConvertEncoding_Windows1252ToUTF8;
+
+      [Test]
+      procedure TestConvertEncoding_WithBackup;
+
+      [Test]
+      procedure TestConvertEncoding_SameEncoding;
+
+      [Test]
+      procedure TestConvertEncoding_WithUmlauts;
+
+      [Test]
+      procedure TestConvertEncoding_InvalidEncoding;
+
+      [Test]
+      procedure TestReinterpretEncoding_UTF8AsWindows1252_Umlauts;
+
+      [Test]
+      procedure TestReinterpretEncoding_UTF8AsWindows1252_Copyright;
+
+      [Test]
+      procedure TestReinterpretEncoding_UTF8AsWindows1252_Eacute;
+
+      [Test]
+      procedure TestReinterpretEncoding_Windows1252AsUTF8;
+
+      [Test]
+      procedure TestReinterpretEncoding_WithBackup;
+
+      [Test]
+      procedure TestReinterpretEncoding_InvalidSourceEncoding;
+
+      [Test]
+      procedure TestReinterpretEncoding_MixedCharacters;
   end;
 
 implementation
@@ -412,6 +452,403 @@ begin
 
   Assert.IsTrue( lResult.Success, 'Show should succeed' );
   Assert.AreEqual( 'Single Line', lResult.OutputText, 'Should show single line' );
+end;
+
+procedure TTestStringOperations.TestConvertEncoding_UTF8ToWindows1252;
+Var
+  lResult         : TOperationResult;
+  lLines          : TStringList;
+  lEncoding       : TEncodingType;
+  lBackupFilePath : string;
+begin
+  CreateTestFile( 'Line 1'#13#10'Line 2'#13#10'Line 3', etUTF8 );
+
+  lResult := TStringOperations.ConvertEncoding( fTestFilePath, 'windows1252', False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'ConvertEncoding should succeed' );
+
+  Assert.IsTrue( TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding ), 'Should read file' );
+
+  try
+    Assert.AreEqual( Ord( etWindows1252 ), Ord( lEncoding ), 'Encoding should be Windows-1252' );
+    Assert.AreEqual( 3, lLines.Count, 'Should have 3 lines' );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should match' );
+    Assert.AreEqual( 'Line 2', lLines[ 1 ], 'Line 2 should match' );
+    Assert.AreEqual( 'Line 3', lLines[ 2 ], 'Line 3 should match' );
+  finally
+    lLines.Free;
+  end;
+
+  lBackupFilePath := fTestFilePath + '.bak';
+
+  Assert.IsFalse( FileExists( lBackupFilePath ), 'Backup should not exist (--backup not specified)' );
+end;
+
+procedure TTestStringOperations.TestConvertEncoding_Windows1252ToUTF8;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1'#13#10'Line 2'#13#10'Line 3', etWindows1252 );
+
+  lResult := TStringOperations.ConvertEncoding( fTestFilePath, 'utf8', False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'ConvertEncoding should succeed' );
+
+  Assert.IsTrue( TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding ), 'Should read file' );
+
+  try
+    Assert.AreEqual( Ord( etUTF8 ), Ord( lEncoding ), 'Encoding should be UTF-8' );
+    Assert.AreEqual( 3, lLines.Count, 'Should have 3 lines' );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should match' );
+    Assert.AreEqual( 'Line 2', lLines[ 1 ], 'Line 2 should match' );
+    Assert.AreEqual( 'Line 3', lLines[ 2 ], 'Line 3 should match' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestConvertEncoding_WithBackup;
+Var
+  lResult         : TOperationResult;
+  lBackupFilePath : string;
+  lLines          : TStringList;
+  lEncoding       : TEncodingType;
+begin
+  CreateTestFile( 'Test Content', etUTF8 );
+
+  lBackupFilePath := fTestFilePath + '.bak';
+
+  lResult := TStringOperations.ConvertEncoding( fTestFilePath, 'windows1252', True, False, False );
+
+  Assert.IsTrue( lResult.Success, 'ConvertEncoding should succeed' );
+  Assert.IsTrue( FileExists( lBackupFilePath ), 'Backup should exist' );
+
+  Assert.IsTrue( TEncodingHelper.ReadFile( lBackupFilePath, lLines, lEncoding ), 'Should read backup file' );
+
+  try
+    Assert.AreEqual( Ord( etUTF8 ), Ord( lEncoding ), 'Backup should have original encoding (UTF-8)' );
+    Assert.AreEqual( 'Test Content', lLines[ 0 ], 'Backup content should match' );
+  finally
+    lLines.Free;
+  end;
+
+  if FileExists( lBackupFilePath ) then
+    DeleteFile( lBackupFilePath );
+end;
+
+procedure TTestStringOperations.TestConvertEncoding_SameEncoding;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Test Content', etWindows1252 );
+
+  lResult := TStringOperations.ConvertEncoding( fTestFilePath, 'windows1252', False, False, False );
+
+  Assert.IsFalse( lResult.Success, 'ConvertEncoding should fail (same encoding)' );
+  Assert.AreEqual( 'File is already in target encoding', lResult.ErrorMessage, 'Error message should match' );
+end;
+
+procedure TTestStringOperations.TestConvertEncoding_WithUmlauts;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Umlaute: ä ö ü ß Ä Ö Ü', etWindows1252 );
+
+  lResult := TStringOperations.ConvertEncoding( fTestFilePath, 'utf8', False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'ConvertEncoding should succeed' );
+
+  Assert.IsTrue( TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding ), 'Should read file' );
+
+  try
+    Assert.AreEqual( Ord( etUTF8 ), Ord( lEncoding ), 'Encoding should be UTF-8' );
+    Assert.AreEqual( 'Umlaute: ä ö ü ß Ä Ö Ü', lLines[ 0 ], 'Umlauts should be preserved' );
+  finally
+    lLines.Free;
+  end;
+
+  lResult := TStringOperations.ConvertEncoding( fTestFilePath, 'windows1252', False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'ConvertEncoding back should succeed' );
+
+  Assert.IsTrue( TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding ), 'Should read file' );
+
+  try
+    Assert.AreEqual( Ord( etWindows1252 ), Ord( lEncoding ), 'Encoding should be Windows-1252' );
+    Assert.AreEqual( 'Umlaute: ä ö ü ß Ä Ö Ü', lLines[ 0 ], 'Umlauts should be preserved after round-trip' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestConvertEncoding_InvalidEncoding;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Test Content', etWindows1252 );
+
+  lResult := TStringOperations.ConvertEncoding( fTestFilePath, 'ascii', False, False, False );
+
+  Assert.IsFalse( lResult.Success, 'ConvertEncoding should fail (invalid encoding)' );
+  Assert.IsTrue( lResult.ErrorMessage.Contains( 'Invalid target encoding' ), 'Error message should mention invalid encoding' );
+end;
+
+procedure TTestStringOperations.TestReinterpretEncoding_UTF8AsWindows1252_Umlauts;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+  lBytes    : TBytes;
+begin
+  SetLength( lBytes, 35 );
+
+  lBytes[ 0 ]  := Ord( 'U' );
+  lBytes[ 1 ]  := Ord( 'm' );
+  lBytes[ 2 ]  := Ord( 'l' );
+  lBytes[ 3 ]  := Ord( 'a' );
+  lBytes[ 4 ]  := Ord( 'u' );
+  lBytes[ 5 ]  := Ord( 't' );
+  lBytes[ 6 ]  := Ord( 'e' );
+  lBytes[ 7 ]  := Ord( ':' );
+  lBytes[ 8 ]  := Ord( ' ' );
+  lBytes[ 9 ]  := $C3;
+  lBytes[ 10 ] := $A4;
+  lBytes[ 11 ] := Ord( ' ' );
+  lBytes[ 12 ] := $C3;
+  lBytes[ 13 ] := $B6;
+  lBytes[ 14 ] := Ord( ' ' );
+  lBytes[ 15 ] := $C3;
+  lBytes[ 16 ] := $BC;
+  lBytes[ 17 ] := Ord( ' ' );
+  lBytes[ 18 ] := $C3;
+  lBytes[ 19 ] := $9F;
+  lBytes[ 20 ] := Ord( ' ' );
+  lBytes[ 21 ] := $C3;
+  lBytes[ 22 ] := $84;
+  lBytes[ 23 ] := Ord( ' ' );
+  lBytes[ 24 ] := $C3;
+  lBytes[ 25 ] := $96;
+  lBytes[ 26 ] := Ord( ' ' );
+  lBytes[ 27 ] := $C3;
+  lBytes[ 28 ] := $9C;
+  lBytes[ 29 ] := $0D;
+  lBytes[ 30 ] := $0A;
+  lBytes[ 31 ] := Ord( 'E' );
+  lBytes[ 32 ] := Ord( 'n' );
+  lBytes[ 33 ] := Ord( 'd' );
+  lBytes[ 34 ] := Ord( 'e' );
+
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  lResult := TStringOperations.ReinterpretEncoding( fTestFilePath, 'utf8', False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'ReinterpretEncoding should succeed' );
+
+  Assert.IsTrue( TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding ), 'Should read file' );
+
+  try
+    Assert.AreEqual( Ord( etWindows1252 ), Ord( lEncoding ), 'Encoding should be Windows-1252' );
+    Assert.AreEqual( 2, lLines.Count, 'Should have 2 lines' );
+    Assert.IsTrue( Pos( 'Umlaute:', lLines[ 0 ] ) > 0, 'Should contain "Umlaute:"' );
+    Assert.IsTrue( Pos( 'Ende', lLines[ 1 ] ) > 0, 'Should contain "Ende"' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestReinterpretEncoding_UTF8AsWindows1252_Copyright;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+  lBytes    : TBytes;
+begin
+  SetLength( lBytes, 13 );
+
+  lBytes[ 0 ]  := Ord( 'C' );
+  lBytes[ 1 ]  := Ord( 'o' );
+  lBytes[ 2 ]  := Ord( 'p' );
+  lBytes[ 3 ]  := Ord( 'y' );
+  lBytes[ 4 ]  := Ord( 'r' );
+  lBytes[ 5 ]  := Ord( 'i' );
+  lBytes[ 6 ]  := Ord( 'g' );
+  lBytes[ 7 ]  := Ord( 'h' );
+  lBytes[ 8 ]  := Ord( 't' );
+  lBytes[ 9 ]  := Ord( ' ' );
+  lBytes[ 10 ] := $C2;
+  lBytes[ 11 ] := $A9;
+  lBytes[ 12 ] := Ord( ' ' );
+
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  lResult := TStringOperations.ReinterpretEncoding( fTestFilePath, 'utf8', False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'ReinterpretEncoding should succeed' );
+
+  Assert.IsTrue( TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding ), 'Should read file' );
+
+  try
+    Assert.AreEqual( Ord( etWindows1252 ), Ord( lEncoding ), 'Encoding should be Windows-1252' );
+    Assert.IsTrue( Pos( 'Copyright', lLines[ 0 ] ) > 0, 'Should contain "Copyright"' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestReinterpretEncoding_UTF8AsWindows1252_Eacute;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+  lBytes    : TBytes;
+begin
+  SetLength( lBytes, 8 );
+
+  lBytes[ 0 ] := Ord( 'C' );
+  lBytes[ 1 ] := Ord( 'a' );
+  lBytes[ 2 ] := Ord( 'f' );
+  lBytes[ 3 ] := $C3;
+  lBytes[ 4 ] := $A9;
+  lBytes[ 5 ] := Ord( ' ' );
+  lBytes[ 6 ] := Ord( 'X' );
+  lBytes[ 7 ] := Ord( 'Y' );
+
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  lResult := TStringOperations.ReinterpretEncoding( fTestFilePath, 'utf8', False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'ReinterpretEncoding should succeed' );
+
+  Assert.IsTrue( TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding ), 'Should read file' );
+
+  try
+    Assert.AreEqual( Ord( etWindows1252 ), Ord( lEncoding ), 'Encoding should be Windows-1252' );
+    Assert.IsTrue( Pos( 'Caf', lLines[ 0 ] ) > 0, 'Should contain "Caf"' );
+    Assert.IsTrue( Pos( 'XY', lLines[ 0 ] ) > 0, 'Should contain "XY"' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestReinterpretEncoding_Windows1252AsUTF8;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+  lBytes    : TBytes;
+begin
+  SetLength( lBytes, 6 );
+
+  lBytes[ 0 ] := $EF;
+  lBytes[ 1 ] := $BB;
+  lBytes[ 2 ] := $BF;
+  lBytes[ 3 ] := $E4;
+  lBytes[ 4 ] := $F6;
+  lBytes[ 5 ] := $FC;
+
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  lResult := TStringOperations.ReinterpretEncoding( fTestFilePath, 'windows1252', False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'ReinterpretEncoding should succeed' );
+
+  Assert.IsTrue( TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding ), 'Should read file' );
+
+  try
+    Assert.AreEqual( Ord( etUTF8 ), Ord( lEncoding ), 'Encoding should be UTF-8' );
+    Assert.AreEqual( 1, lLines.Count, 'Should have 1 line' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestReinterpretEncoding_WithBackup;
+Var
+  lResult         : TOperationResult;
+  lBackupFilePath : string;
+  lBytes          : TBytes;
+begin
+  SetLength( lBytes, 4 );
+
+  lBytes[ 0 ] := $C3;
+  lBytes[ 1 ] := $A4;
+  lBytes[ 2 ] := Ord( 'X' );
+  lBytes[ 3 ] := Ord( 'Y' );
+
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  lBackupFilePath := fTestFilePath + '.bak';
+
+  lResult := TStringOperations.ReinterpretEncoding( fTestFilePath, 'utf8', True, False, False );
+
+  Assert.IsTrue( lResult.Success, 'ReinterpretEncoding should succeed' );
+  Assert.IsTrue( FileExists( lBackupFilePath ), 'Backup should exist' );
+
+  if FileExists( lBackupFilePath ) then
+    DeleteFile( lBackupFilePath );
+end;
+
+procedure TTestStringOperations.TestReinterpretEncoding_InvalidSourceEncoding;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Test Content', etWindows1252 );
+
+  lResult := TStringOperations.ReinterpretEncoding( fTestFilePath, 'ascii', False, False, False );
+
+  Assert.IsFalse( lResult.Success, 'ReinterpretEncoding should fail (invalid encoding)' );
+  Assert.IsTrue( lResult.ErrorMessage.Contains( 'Invalid source encoding' ), 'Error message should mention invalid encoding' );
+end;
+
+procedure TTestStringOperations.TestReinterpretEncoding_MixedCharacters;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+  lBytes    : TBytes;
+begin
+  SetLength( lBytes, 20 );
+
+  lBytes[ 0 ]  := Ord( 'T' );
+  lBytes[ 1 ]  := Ord( 'e' );
+  lBytes[ 2 ]  := Ord( 's' );
+  lBytes[ 3 ]  := Ord( 't' );
+  lBytes[ 4 ]  := Ord( ' ' );
+  lBytes[ 5 ]  := $C3;
+  lBytes[ 6 ]  := $A4;
+  lBytes[ 7 ]  := Ord( ' ' );
+  lBytes[ 8 ]  := $C2;
+  lBytes[ 9 ]  := $A9;
+  lBytes[ 10 ] := Ord( ' ' );
+  lBytes[ 11 ] := $C3;
+  lBytes[ 12 ] := $A9;
+  lBytes[ 13 ] := Ord( ' ' );
+  lBytes[ 14 ] := $C3;
+  lBytes[ 15 ] := $B6;
+  lBytes[ 16 ] := Ord( ' ' );
+  lBytes[ 17 ] := Ord( 'X' );
+  lBytes[ 18 ] := Ord( 'Y' );
+  lBytes[ 19 ] := Ord( 'Z' );
+
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  lResult := TStringOperations.ReinterpretEncoding( fTestFilePath, 'utf8', False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'ReinterpretEncoding should succeed' );
+
+  Assert.IsTrue( TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding ), 'Should read file' );
+
+  try
+    Assert.AreEqual( Ord( etWindows1252 ), Ord( lEncoding ), 'Encoding should be Windows-1252' );
+    Assert.IsTrue( Pos( 'Test', lLines[ 0 ] ) > 0, 'Should contain "Test"' );
+    Assert.IsTrue( Pos( 'XYZ', lLines[ 0 ] ) > 0, 'Should contain "XYZ"' );
+  finally
+    lLines.Free;
+  end;
 end;
 
 end.

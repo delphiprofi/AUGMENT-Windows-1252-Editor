@@ -117,6 +117,34 @@ begin
         ExitCode := Ord( ecSuccess );
       end;
 
+    ctReinterpretEncoding:
+      begin
+        if aParams.FilePath = '' then
+          begin
+            WriteLn( 'ERROR: --file parameter required for --reinterpret-as' );
+            ExitCode := Ord( ecParameterError );
+            Exit;
+          end;
+
+        if not FileExists( aParams.FilePath ) then
+          begin
+            WriteLn( 'ERROR: File not found: ' + aParams.FilePath );
+            ExitCode := Ord( ecFileNotFound );
+            Exit;
+          end;
+
+        lResult := TStringOperations.ReinterpretEncoding( aParams.FilePath, aParams.SourceEncoding, aParams.Backup, aParams.DryRun, aParams.Verbose );
+
+        if not lResult.Success then
+          begin
+            WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+            ExitCode := Ord( ecEncodingError );
+            Exit;
+          end;
+
+        ExitCode := Ord( ecSuccess );
+      end;
+
     ctShow:
       begin
         if aParams.FilePath = '' then

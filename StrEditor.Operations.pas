@@ -10,6 +10,7 @@ Uses
   System.SysUtils
 , System.Classes
 , System.Math
+, System.IOUtils
 , Winapi.Windows
 , StrEditor.Encoding
 , StrEditor.Macros
@@ -67,6 +68,14 @@ Type
       /// </summary>
       {$ENDREGION}
       class function ConvertEncoding( const aFilePath : string; const aTargetEncoding : string; const aBackup : Boolean; const aDryRun : Boolean; const aVerbose : Boolean ) : TOperationResult;
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Re-interpretiert Datei-Encoding (repariert kaputte Encodings)
+      ///   Liest Datei als aSourceEncoding und speichert als Ziel-Encoding
+      /// </summary>
+      {$ENDREGION}
+      class function ReinterpretEncoding( const aFilePath : string; const aSourceEncoding : string; const aBackup : Boolean; const aDryRun : Boolean; const aVerbose : Boolean ) : TOperationResult;
 
     strict private
       class function FindAndReplace( const aLines : TStringList; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer; const aVerbose : Boolean = false ) : Boolean;
@@ -524,6 +533,89 @@ begin
 
     if aVerbose then
       WriteLn( 'Encoding converted successfully!' );
+
+    Result.Success := true;
+  finally
+    lLines.Free;
+  end;
+end;
+
+class function TStringOperations.ReinterpretEncoding( const aFilePath : string; const aSourceEncoding : string; const aBackup : Boolean; const aDryRun : Boolean; const aVerbose : Boolean ) : TOperationResult;
+Var
+  lBytes          : TBytes;
+  lSourceEnc      : TEncoding;
+  lTargetEncoding : TEncodingType;
+  lContent        : string;
+  lLines          : TStringList;
+begin
+  Result.Success := False;
+
+  if aVerbose then
+    begin
+      WriteLn( 'File: ' + aFilePath );
+      WriteLn( 'Source Encoding (to interpret as): ' + aSourceEncoding );
+    end;
+
+  if LowerCase( aSourceEncoding ) = 'utf8' then
+    begin
+      lSourceEnc      := TEncoding.UTF8;
+      lTargetEncoding := etWindows1252;
+
+      if aVerbose then
+        WriteLn( 'Target Encoding: Windows-1252 (no BOM)' );
+    end
+  else
+  if LowerCase( aSourceEncoding ) = 'windows1252' then
+    begin
+      lSourceEnc      := TEncoding.GetEncoding( 1252 );
+      lTargetEncoding := etUTF8;
+
+      if aVerbose then
+        WriteLn( 'Target Encoding: UTF-8 with BOM' );
+    end
+  else
+    begin
+      Result.ErrorMessage := 'Invalid source encoding: ' + aSourceEncoding + ' (use utf8 or windows1252)';
+      Exit;
+    end;
+
+  if not FileExists( aFilePath ) then
+    begin
+      Result.ErrorMessage := 'File not found: ' + aFilePath;
+      Exit;
+    end;
+
+  lBytes := TFile.ReadAllBytes( aFilePath );
+
+  lContent := lSourceEnc.GetString( lBytes );
+
+  if aDryRun then
+    begin
+      WriteLn( 'DRY RUN: Would reinterpret as ', aSourceEncoding, ' and save as ', if lTargetEncoding = etUTF8 then 'UTF-8' else 'Windows-1252' );
+      Result.Success := true;
+      Exit;
+    end;
+
+  if aBackup then
+    if not CreateBackup( aFilePath ) then
+      begin
+        Result.ErrorMessage := 'Failed to create backup: ' + aFilePath + '.bak';
+        Exit;
+      end;
+
+  lLines := TStringList.Create;
+
+  try
+    lLines.Text := lContent;
+
+    if not TEncodingHelper.WriteFile( aFilePath, lLines, lTargetEncoding ) then
+      begin
+        Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
+        Exit;
+      end;
+
+    if aVerbose then
+      WriteLn( 'Encoding reinterpreted successfully!' );
 
     Result.Success := true;
   finally
