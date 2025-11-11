@@ -9,6 +9,7 @@ interface
 Uses
   System.SysUtils
 , System.Classes
+, System.Math
 , Winapi.Windows
 , StrEditor.Encoding
 , StrEditor.Macros
@@ -29,6 +30,7 @@ Type
     Success      : Boolean;
     ErrorMessage : string;
     LinesChanged : Integer;
+    OutputText   : string;  // For Show command output
   end;
 
   {$REGION 'Documentation'}
@@ -43,7 +45,7 @@ Type
       ///   Ersetzt einen String in einer Datei. Unterstützt Makros: {{LINE_NUMBER}}, {{FILE_NAME}}, {{DATE}}, {{TIME}}.
       /// </summary>
       {$ENDREGION}
-      class function StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = '' ) : TOperationResult;
+      class function StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = ''; const aVerbose : Boolean = false ) : TOperationResult;
 
       {$REGION 'Documentation'}
       /// <summary>
@@ -52,8 +54,15 @@ Type
       {$ENDREGION}
       class function Insert( const aFilePath : string; const aText : string; const aInsertAfterLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false ) : TOperationResult;
 
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Zeigt Datei-Inhalt an (encoding-aware, wie Get-Content)
+      /// </summary>
+      {$ENDREGION}
+      class function Show( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aHead : Integer; const aTail : Integer; const aLineNumbers : Boolean; const aRaw : Boolean; const aVerbose : Boolean ) : TOperationResult;
+
     strict private
-      class function FindAndReplace( const aLines : TStringList; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer ) : Boolean;
+      class function FindAndReplace( const aLines : TStringList; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer; const aVerbose : Boolean = false ) : Boolean;
       class function InsertText( const aLines : TStringList; const aText : string; const aInsertAfterLine : Integer; const aFilePath : string ) : Boolean;
       class function CreateBackup( const aFilePath : string ) : Boolean;
   end;
@@ -62,7 +71,7 @@ implementation
 
 { TStringOperations }
 
-class function TStringOperations.StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = '' ) : TOperationResult;
+class function TStringOperations.StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = ''; const aVerbose : Boolean = false ) : TOperationResult;
 Var
   lLines        : TStringList;
   lOriginal     : TStringList;
@@ -105,7 +114,7 @@ begin
           end;
       end
     else begin
-           if not FindAndReplace( lLines, aOldStr, aNewStr, aStartLine, aEndLine, aFilePath, lLinesChanged ) then
+           if not FindAndReplace( lLines, aOldStr, aNewStr, aStartLine, aEndLine, aFilePath, lLinesChanged, aVerbose ) then
              begin
                Result.ErrorMessage := 'String not found: ' + aOldStr;
                Exit;
@@ -220,7 +229,7 @@ begin
   end;
 end;
 
-class function TStringOperations.FindAndReplace( const aLines : TStringList; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer ) : Boolean;
+class function TStringOperations.FindAndReplace( const aLines : TStringList; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer; const aVerbose : Boolean = false ) : Boolean;
 Var
   i               : Integer;
   lStartLine      : Integer;
@@ -239,14 +248,32 @@ begin
   if ( lEndLine < 1 ) or ( lEndLine > aLines.Count ) then
     lEndLine := aLines.Count;
 
+  if aVerbose then
+    begin
+      WriteLn( 'Searching for: "', aOldStr, '"' );
+      WriteLn( 'In lines ', lStartLine, ' to ', lEndLine, ' (', lEndLine - lStartLine + 1, ' lines)' );
+      WriteLn;
+    end;
+
   for i := lStartLine - 1 to lEndLine - 1 do
     begin
+      if aVerbose then
+        WriteLn( 'Line ', i + 1, ': "', aLines[ i ], '"' );
+
       if Pos( aOldStr, aLines[ i ] ) > 0 then
         begin
+          if aVerbose then
+            WriteLn( '  -> MATCH found at position ', Pos( aOldStr, aLines[ i ] ) );
+
           lExpandedNewStr := TMacroExpander.ExpandMacros( aNewStr, aFilePath, i + 1 );
           aLines[ i ]     := StringReplace( aLines[ i ], aOldStr, lExpandedNewStr, [ rfReplaceAll ] );
           Inc( aLinesChanged );
           Result := true;
+        end
+      else
+        begin
+          if aVerbose then
+            WriteLn( '  -> No match' );
         end;
     end;
 end;
@@ -286,6 +313,125 @@ begin
     Result := true;
   except
     Result := false;
+  end;
+end;
+
+class function TStringOperations.Show( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aHead : Integer; const aTail : Integer; const aLineNumbers : Boolean; const aRaw : Boolean; const aVerbose : Boolean ) : TOperationResult;
+Var
+  lLines     : TStringList;
+  lEncoding  : TEncodingType;
+  lStart     : Integer;
+  lEnd       : Integer;
+  i          : Integer;
+  lLineNum   : string;
+  lMaxDigits : Integer;
+  lOutput    : TStringList;
+begin
+  Result.Success      := false;
+  Result.ErrorMessage := '';
+  Result.LinesChanged := 0;
+  Result.OutputText   := '';
+
+  if not FileExists( aFilePath ) then
+    begin
+      Result.ErrorMessage := 'File not found: ' + aFilePath;
+      Exit;
+    end;
+
+  lLines  := TStringList.Create;
+  lOutput := TStringList.Create;
+  try
+    if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+      begin
+        Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
+        Exit;
+      end;
+
+    if aVerbose then
+      begin
+        WriteLn( 'File: ' + aFilePath );
+        if lEncoding = etUTF8
+          then WriteLn( 'Encoding: UTF-8 with BOM' )
+          else WriteLn( 'Encoding: Windows-1252 (no BOM)' );
+        WriteLn( 'Total lines: ' + IntToStr( lLines.Count ) );
+        WriteLn;
+      end;
+
+    if lLines.Count = 0 then
+      begin
+        Result.Success    := true;
+        Result.OutputText := '';
+        Exit;
+      end;
+
+    lStart := 1;
+    lEnd   := lLines.Count;
+
+    if aHead > 0 then
+      lEnd := Min( aHead, lLines.Count );
+
+    if aTail > 0 then
+      begin
+        lStart := Max( 1, lLines.Count - aTail + 1 );
+        lEnd   := lLines.Count;
+      end;
+
+    if aStartLine > 0 then
+      lStart := Max( 1, aStartLine );
+
+    if aEndLine > 0 then
+      lEnd := Min( aEndLine, lLines.Count );
+
+    if lStart > lEnd then
+      begin
+        Result.ErrorMessage := 'Invalid line range: start > end';
+        Exit;
+      end;
+
+    if aRaw then
+      begin
+        for i := lStart - 1 to lEnd - 1 do
+          begin
+            if i > lStart - 1 then
+              Result.OutputText := Result.OutputText + ' ';
+
+            Result.OutputText := Result.OutputText + lLines[ i ];
+          end;
+
+        WriteLn( Result.OutputText );
+      end
+    else begin
+           if aLineNumbers then
+             begin
+               lMaxDigits := Length( IntToStr( lEnd ) );
+
+               for i := lStart - 1 to lEnd - 1 do
+                 begin
+                   lLineNum := IntToStr( i + 1 );
+                   while Length( lLineNum ) < lMaxDigits do
+                     lLineNum := ' ' + lLineNum;
+
+                   lOutput.Add( lLineNum + ': ' + lLines[ i ] );
+                 end;
+             end
+           else begin
+                  for i := lStart - 1 to lEnd - 1 do
+                    lOutput.Add( lLines[ i ] );
+                end;
+
+           Result.OutputText := lOutput.Text;
+           if Result.OutputText.EndsWith( #13#10 ) then
+             Result.OutputText := Copy( Result.OutputText, 1, Length( Result.OutputText ) - 2 );
+
+           Write( Result.OutputText );
+           if not aVerbose then
+             WriteLn;
+         end;
+
+    Result.Success := true;
+  finally
+    lLines.Free;
+    lOutput.Free;
   end;
 end;
 

@@ -6,6 +6,7 @@ program StrEditor;
 
 Uses
   System.SysUtils
+, System.Classes
 , StrEditor.Encoding
 , StrEditor.Operations
 , StrEditor.CommandLine
@@ -33,6 +34,89 @@ begin
         ExitCode := Ord( ecSuccess );
       end;
 
+    ctDetectEncoding:
+      begin
+        if aParams.FilePath = '' then
+          begin
+            WriteLn( 'ERROR: --file parameter required for --detect-encoding' );
+            ExitCode := Ord( ecParameterError );
+            Exit;
+          end;
+
+        if not FileExists( aParams.FilePath ) then
+          begin
+            WriteLn( 'ERROR: File not found: ' + aParams.FilePath );
+            ExitCode := Ord( ecFileNotFound );
+            Exit;
+          end;
+
+        Var lEncoding     := TEncodingHelper.DetectEncoding( aParams.FilePath );
+        Var lEncodingName : string;
+
+        case lEncoding of
+          etUTF8        : lEncodingName := 'UTF-8 with BOM';
+          etWindows1252 : lEncodingName := 'Windows-1252 (no BOM)';
+          else            lEncodingName := 'Unknown';
+        end;
+
+        WriteLn( 'File: ' + aParams.FilePath );
+        WriteLn( 'Encoding: ' + lEncodingName );
+
+        if aParams.Verbose then
+          begin
+            WriteLn;
+            WriteLn( '--- Details ---' );
+
+            Var lFileStream := TFileStream.Create( aParams.FilePath, fmOpenRead or fmShareDenyWrite );
+            try
+              Var lBytes : TBytes;
+              SetLength( lBytes, 3 );
+
+              if lFileStream.Size >= 3 then
+                lFileStream.Read( lBytes[ 0 ], 3 );
+
+              WriteLn( 'File size: ' + IntToStr( lFileStream.Size ) + ' bytes' );
+              WriteLn( 'First 3 bytes (hex): ' + IntToHex( lBytes[ 0 ], 2 ) + ' ' + IntToHex( lBytes[ 1 ], 2 ) + ' ' + IntToHex( lBytes[ 2 ], 2 ) );
+
+              if lEncoding = etUTF8
+                then WriteLn( 'BOM detected: EF BB BF (UTF-8)' )
+                else WriteLn( 'No BOM detected (Windows-1252)' );
+            finally
+              lFileStream.Free;
+            end;
+          end;
+
+        ExitCode := Ord( ecSuccess );
+      end;
+
+    ctShow:
+      begin
+        if aParams.FilePath = '' then
+          begin
+            WriteLn( 'ERROR: --file parameter required for --show' );
+            ExitCode := Ord( ecParameterError );
+            Exit;
+          end;
+
+        if not FileExists( aParams.FilePath ) then
+          begin
+            WriteLn( 'ERROR: File not found: ' + aParams.FilePath );
+            ExitCode := Ord( ecFileNotFound );
+            Exit;
+          end;
+
+        lResult := TStringOperations.Show( aParams.FilePath, aParams.StartLine, aParams.EndLine, aParams.ShowHead, aParams.ShowTail, aParams.ShowLineNumbers, aParams.ShowRaw, aParams.Verbose );
+
+        if not lResult.Success then
+          begin
+            WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+            ExitCode := Ord( ecEncodingError );
+            Exit;
+          end;
+
+        ExitCode := Ord( ecSuccess );
+      end;
+
     ctStrReplace:
       begin
         if aParams.Verbose then
@@ -42,7 +126,7 @@ begin
               else WriteLn( 'Replacing "' + aParams.OldStr + '" with "' + aParams.NewStr + '" in ' + aParams.FilePath );
           end;
 
-        lResult := TStringOperations.StrReplace( aParams.FilePath, aParams.OldStr, aParams.NewStr, aParams.StartLine, aParams.EndLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.CaseConversion, aParams.IndentLevel, aParams.ConditionPattern );
+        lResult := TStringOperations.StrReplace( aParams.FilePath, aParams.OldStr, aParams.NewStr, aParams.StartLine, aParams.EndLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.CaseConversion, aParams.IndentLevel, aParams.ConditionPattern, aParams.Verbose );
 
         if lResult.Success then
           begin

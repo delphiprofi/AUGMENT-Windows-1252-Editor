@@ -53,6 +53,33 @@ Type
 
       [Test]
       procedure TestEncodingPreservation_Insert;
+
+      [Test]
+      procedure TestShow_FullFile;
+
+      [Test]
+      procedure TestShow_Head;
+
+      [Test]
+      procedure TestShow_Tail;
+
+      [Test]
+      procedure TestShow_LineRange;
+
+      [Test]
+      procedure TestShow_WithLineNumbers;
+
+      [Test]
+      procedure TestShow_Raw;
+
+      [Test]
+      procedure TestShow_WithUmlauts;
+
+      [Test]
+      procedure TestShow_EmptyFile;
+
+      [Test]
+      procedure TestShow_SingleLine;
   end;
 
 implementation
@@ -276,6 +303,115 @@ begin
   lEncoding := TEncodingHelper.DetectEncoding( fTestFilePath );
 
   Assert.AreEqual( etWindows1252, lEncoding, 'Encoding should be preserved as Windows-1252' );
+end;
+
+procedure TTestStringOperations.TestShow_FullFile;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 0, False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'Show should succeed' );
+  Assert.AreEqual( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', lResult.OutputText, 'Should show full file' );
+end;
+
+procedure TTestStringOperations.TestShow_Head;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3' + #13#10 + 'Line 4', etWindows1252 );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 2, 0, False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'Show should succeed' );
+  Assert.AreEqual( 'Line 1' + #13#10 + 'Line 2', lResult.OutputText, 'Should show first 2 lines' );
+end;
+
+procedure TTestStringOperations.TestShow_Tail;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3' + #13#10 + 'Line 4', etWindows1252 );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 2, False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'Show should succeed' );
+  Assert.AreEqual( 'Line 3' + #13#10 + 'Line 4', lResult.OutputText, 'Should show last 2 lines' );
+end;
+
+procedure TTestStringOperations.TestShow_LineRange;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3' + #13#10 + 'Line 4', etWindows1252 );
+
+  lResult := TStringOperations.Show( fTestFilePath, 2, 3, 0, 0, False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'Show should succeed' );
+  Assert.AreEqual( 'Line 2' + #13#10 + 'Line 3', lResult.OutputText, 'Should show lines 2-3' );
+end;
+
+procedure TTestStringOperations.TestShow_WithLineNumbers;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2', etWindows1252 );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 0, True, False, False );
+
+  Assert.IsTrue( lResult.Success, 'Show should succeed' );
+  Assert.IsTrue( lResult.OutputText.Contains( '1:' ), 'Should contain line number 1' );
+  Assert.IsTrue( lResult.OutputText.Contains( '2:' ), 'Should contain line number 2' );
+end;
+
+procedure TTestStringOperations.TestShow_Raw;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 0, False, True, False );
+
+  Assert.IsTrue( lResult.Success, 'Show should succeed' );
+  Assert.AreEqual( 'Line 1 Line 2 Line 3', lResult.OutputText, 'Should show as single line with spaces' );
+end;
+
+procedure TTestStringOperations.TestShow_WithUmlauts;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'äöüÄÖÜß', etWindows1252 );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 0, False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'Show should succeed' );
+  Assert.AreEqual( 'äöüÄÖÜß', lResult.OutputText, 'Should show umlauts correctly' );
+end;
+
+procedure TTestStringOperations.TestShow_EmptyFile;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( '', etWindows1252 );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 0, False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'Show should succeed' );
+  Assert.AreEqual( '', lResult.OutputText, 'Should show empty string' );
+end;
+
+procedure TTestStringOperations.TestShow_SingleLine;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Single Line', etWindows1252 );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 0, False, False, False );
+
+  Assert.IsTrue( lResult.Success, 'Show should succeed' );
+  Assert.AreEqual( 'Single Line', lResult.OutputText, 'Should show single line' );
 end;
 
 end.

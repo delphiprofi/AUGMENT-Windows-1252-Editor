@@ -17,7 +17,7 @@ Type
   ///   Command-Typ
   /// </summary>
   {$ENDREGION}
-  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion );
+  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow );
 
   {$REGION 'Documentation'}
   /// <summary>
@@ -69,6 +69,10 @@ Type
     CaseConversion    : TCaseConversion;
     IndentLevel       : Integer;
     Verbose           : Boolean;
+    ShowHead          : Integer;
+    ShowTail          : Integer;
+    ShowRaw           : Boolean;
+    ShowLineNumbers   : Boolean;
   end;
 
   {$REGION 'Documentation'}
@@ -137,6 +141,10 @@ begin
   aParams.DryRun          := false;
   aParams.Diff            := false;
   aParams.Verbose         := false;
+  aParams.ShowHead        := 0;
+  aParams.ShowTail        := 0;
+  aParams.ShowRaw         := false;
+  aParams.ShowLineNumbers := false;
 
   if HasParam( '--help' ) or HasParam( '-h' ) then
     begin
@@ -149,6 +157,56 @@ begin
     begin
       aParams.Command := ctVersion;
       Result          := true;
+      Exit;
+    end;
+
+  if HasParam( '--detect-encoding' ) or HasParam( '--encoding' ) then
+    begin
+      aParams.Command  := ctDetectEncoding;
+      aParams.FilePath := GetParamValue( '--file' );
+      aParams.Verbose  := HasParam( '--verbose' );
+      Result           := true;
+      Exit;
+    end;
+
+  if HasParam( '--show' ) or HasParam( '--cat' ) then
+    begin
+      aParams.Command         := ctShow;
+      aParams.FilePath        := GetParamValue( '--file' );
+      aParams.Verbose         := HasParam( '--verbose' );
+      aParams.ShowLineNumbers := HasParam( '--line-numbers' );
+      aParams.ShowRaw         := HasParam( '--raw' );
+
+      if HasParam( '--head' ) or HasParam( '--first' ) or HasParam( '--total-count' ) then
+        begin
+          if HasParam( '--head' )
+            then aParams.ShowHead := StrToIntDef( GetParamValue( '--head' ), 0 )
+            else
+          if HasParam( '--first' )
+            then aParams.ShowHead := StrToIntDef( GetParamValue( '--first' ), 0 )
+            else aParams.ShowHead := StrToIntDef( GetParamValue( '--total-count' ), 0 );
+        end;
+
+      if HasParam( '--tail' ) or HasParam( '--last' ) then
+        begin
+          if HasParam( '--tail' )
+            then aParams.ShowTail := StrToIntDef( GetParamValue( '--tail' ), 0 )
+            else aParams.ShowTail := StrToIntDef( GetParamValue( '--last' ), 0 );
+        end;
+
+      if HasParam( '--start-line' ) then
+        aParams.StartLine := StrToIntDef( GetParamValue( '--start-line' ), 0 );
+
+      if HasParam( '--end-line' ) then
+        aParams.EndLine := StrToIntDef( GetParamValue( '--end-line' ), 0 );
+
+      if aParams.FilePath = '' then
+        begin
+          ShowError( 'Missing required parameter: --file' );
+          Exit;
+        end;
+
+      Result := true;
       Exit;
     end;
 
@@ -361,6 +419,8 @@ begin
   WriteLn( '  StrEditor.exe --file <file> --text <text> --insert-after-line <n>' );
   WriteLn( '  StrEditor.exe --file <file> --regex-pattern <pattern> --regex-replace <replacement> [-i] [-m]' );
   WriteLn( '  StrEditor.exe --file <file> --regex-pattern <pattern> --regex-test [-i] [-m]' );
+  WriteLn( '  StrEditor.exe --file <file> --detect-encoding' );
+  WriteLn( '  StrEditor.exe --file <file> --show [--head <n>] [--tail <n>] [--line-numbers] [--raw]' );
   WriteLn( '  StrEditor.exe --help' );
   WriteLn( '  StrEditor.exe --version' );
   WriteLn;
@@ -387,6 +447,14 @@ begin
   WriteLn( '  --indent <n>               Indent (+n) or outdent (-n) lines' );
   WriteLn( '  --undo                     Restore backup file (requires --file)' );
   WriteLn( '  --config <file>            Load parameters from JSON config file' );
+  WriteLn( '  --detect-encoding          Detect and show file encoding (requires --file)' );
+  WriteLn( '  --show, --cat              Show file content (encoding-aware)' );
+  WriteLn( '  --head <n>                 Show first N lines (aliases: --first, --total-count)' );
+  WriteLn( '  --tail <n>                 Show last N lines (alias: --last)' );
+  WriteLn( '  --start-line <n>           Start line for show (with --end-line)' );
+  WriteLn( '  --end-line <n>             End line for show (with --start-line)' );
+  WriteLn( '  --line-numbers             Show line numbers' );
+  WriteLn( '  --raw                      Show as single string (no line breaks)' );
   WriteLn( '  --verbose                  Show detailed information' );
   WriteLn( '  --help, -h                 Show this help' );
   WriteLn( '  --version, -v              Show version' );
@@ -396,13 +464,28 @@ begin
   WriteLn( '  StrEditor.exe --file "test.pas" --text "// Comment" --insert-after-line 10' );
   WriteLn( '  StrEditor.exe --file "test.pas" --regex-pattern "f(\w+)" --regex-replace "l$1" -i' );
   WriteLn( '  StrEditor.exe --file "test.pas" --regex-pattern "procedure\s+(\w+)" --regex-test' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --detect-encoding' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --show --head 10 --line-numbers' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --show --tail 5' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --show --start-line 10 --end-line 20' );
 end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.0.0' );
-  WriteLn( 'Build: 2025-11-09' );
+  WriteLn( 'StrEditor v1.2.0' );
+  WriteLn( 'Build: 2025-11-10' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
+  WriteLn;
+  WriteLn( 'New in v1.2:' );
+  WriteLn( '  - Show/Cat Command (--show, --cat)' );
+  WriteLn( '  - Head/Tail Support (--head, --tail)' );
+  WriteLn( '  - Line Range Support (--start-line, --end-line)' );
+  WriteLn( '  - Line Numbers (--line-numbers)' );
+  WriteLn( '  - Raw Output (--raw)' );
+  WriteLn;
+  WriteLn( 'Previous versions:' );
+  WriteLn( '  v1.1: Encoding Detection, Improved Verbose Output' );
+  WriteLn( '  v1.0: Initial Release' );
 end;
 
 class procedure TCommandLineParser.ShowError( const aMessage : string );
