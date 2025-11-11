@@ -9,6 +9,8 @@ Uses
 , System.IOUtils
 , StrEditor.Encoding
 , StrEditor.Operations
+, StrEditor.CaseConversion
+, StrEditor.CommandLine
 ;
 
 Type
@@ -120,6 +122,30 @@ Type
 
       [Test]
       procedure TestReinterpretEncoding_MixedCharacters;
+
+      [Test]
+      procedure TestBase64Replace_DollarSign;
+
+      [Test]
+      procedure TestBase64Replace_Backtick;
+
+      [Test]
+      procedure TestBase64Replace_DoubleQuote;
+
+      [Test]
+      procedure TestBase64Replace_AtSign;
+
+      [Test]
+      procedure TestBase64Replace_ComplexString;
+
+      [Test]
+      procedure TestBase64Insert_DollarSign;
+
+      [Test]
+      procedure TestBase64Replace_InvalidBase64;
+
+      [Test]
+      procedure TestBase64Replace_EmptyString;
   end;
 
 implementation
@@ -849,6 +875,185 @@ begin
   finally
     lLines.Free;
   end;
+end;
+
+procedure TTestStringOperations.TestBase64Replace_DollarSign;
+Var
+  lResult : TOperationResult;
+  lLines  : TStringList;
+  lBase64 : string;
+begin
+  TFile.WriteAllText( fTestFilePath, '     {$IFDEF PREUNICODE}' + #13#10 + 'end.', TEncoding.GetEncoding( 1252 ) );
+
+  lBase64 := 'ICAgICB7JElGREVGIFBSRVVOSUNPREV9';
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lBase64, '     {$IFDEF UNICODE}', 1, -1, False, False, False, ccNone, 0, '', False, True, False );
+
+  Assert.IsTrue( lResult.Success, 'Replace should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should change 1 line' );
+
+  lLines := TStringList.Create;
+
+  try
+    lLines.LoadFromFile( fTestFilePath, TEncoding.GetEncoding( 1252 ) );
+    Assert.AreEqual( '     {$IFDEF UNICODE}', lLines[ 0 ], 'Line should be replaced' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestBase64Replace_Backtick;
+Var
+  lResult : TOperationResult;
+  lLines  : TStringList;
+  lBase64 : string;
+begin
+  TFile.WriteAllText( fTestFilePath, 'Test `backtick` here' + #13#10 + 'end.', TEncoding.GetEncoding( 1252 ) );
+
+  lBase64 := 'VGVzdCBgYmFja3RpY2tgIGhlcmU=';
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lBase64, 'Test replaced here', 1, -1, False, False, False, ccNone, 0, '', False, True, False );
+
+  Assert.IsTrue( lResult.Success, 'Replace should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should change 1 line' );
+
+  lLines := TStringList.Create;
+
+  try
+    lLines.LoadFromFile( fTestFilePath, TEncoding.GetEncoding( 1252 ) );
+    Assert.AreEqual( 'Test replaced here', lLines[ 0 ], 'Line should be replaced' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestBase64Replace_DoubleQuote;
+Var
+  lResult : TOperationResult;
+  lLines  : TStringList;
+  lBase64 : string;
+begin
+  TFile.WriteAllText( fTestFilePath, 'Test "quoted" here' + #13#10 + 'end.', TEncoding.GetEncoding( 1252 ) );
+
+  lBase64 := 'VGVzdCAicXVvdGVkIiBoZXJl';
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lBase64, 'Test replaced here', 1, -1, False, False, False, ccNone, 0, '', False, True, False );
+
+  Assert.IsTrue( lResult.Success, 'Replace should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should change 1 line' );
+
+  lLines := TStringList.Create;
+
+  try
+    lLines.LoadFromFile( fTestFilePath, TEncoding.GetEncoding( 1252 ) );
+    Assert.AreEqual( 'Test replaced here', lLines[ 0 ], 'Line should be replaced' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestBase64Replace_AtSign;
+Var
+  lResult : TOperationResult;
+  lLines  : TStringList;
+  lBase64 : string;
+begin
+  TFile.WriteAllText( fTestFilePath, 'Email: test@example.com' + #13#10 + 'end.', TEncoding.GetEncoding( 1252 ) );
+
+  lBase64 := 'RW1haWw6IHRlc3RAZXhhbXBsZS5jb20=';
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lBase64, 'Email: new@example.com', 1, -1, False, False, False, ccNone, 0, '', False, True, False );
+
+  Assert.IsTrue( lResult.Success, 'Replace should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should change 1 line' );
+
+  lLines := TStringList.Create;
+
+  try
+    lLines.LoadFromFile( fTestFilePath, TEncoding.GetEncoding( 1252 ) );
+    Assert.AreEqual( 'Email: new@example.com', lLines[ 0 ], 'Line should be replaced' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestBase64Replace_ComplexString;
+Var
+  lResult : TOperationResult;
+  lLines  : TStringList;
+  lBase64 : string;
+begin
+  TFile.WriteAllText( fTestFilePath, '{$IFDEF DEBUG} WriteLn("Test @Home"); {$ENDIF}' + #13#10 + 'end.', TEncoding.GetEncoding( 1252 ) );
+
+  lBase64 := 'eyRJRkRFRiBERUJVR30gV3JpdGVMbigiVGVzdCBASG9tZSIpOyB7JEVORElGfQ==';
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lBase64, '{$IFDEF RELEASE} WriteLn("Prod"); {$ENDIF}', 1, -1, False, False, False, ccNone, 0, '', False, True, False );
+
+  Assert.IsTrue( lResult.Success, 'Replace should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should change 1 line' );
+
+  lLines := TStringList.Create;
+
+  try
+    lLines.LoadFromFile( fTestFilePath, TEncoding.GetEncoding( 1252 ) );
+    Assert.AreEqual( '{$IFDEF RELEASE} WriteLn("Prod"); {$ENDIF}', lLines[ 0 ], 'Line should be replaced' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestBase64Insert_DollarSign;
+Var
+  lResult : TOperationResult;
+  lLines  : TStringList;
+  lBase64 : string;
+begin
+  TFile.WriteAllText( fTestFilePath, 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'end.', TEncoding.GetEncoding( 1252 ) );
+
+  lBase64 := 'eyRJRkRFRiBERUJVR30=';
+
+  lResult := TStringOperations.Insert( fTestFilePath, lBase64, 1, False, False, False, True );
+
+  Assert.IsTrue( lResult.Success, 'Insert should succeed' );
+
+  lLines := TStringList.Create;
+
+  try
+    lLines.LoadFromFile( fTestFilePath, TEncoding.GetEncoding( 1252 ) );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'First line unchanged' );
+    Assert.AreEqual( '{$IFDEF DEBUG}', lLines[ 1 ], 'Inserted line' );
+    Assert.AreEqual( 'Line 2', lLines[ 2 ], 'Second line unchanged' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestBase64Replace_InvalidBase64;
+Var
+  lResult : TOperationResult;
+begin
+  TFile.WriteAllText( fTestFilePath, 'Test' + #13#10 + 'end.', TEncoding.GetEncoding( 1252 ) );
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, 'INVALID!!!BASE64', 'New', 1, -1, False, False, False, ccNone, 0, '', False, True, False );
+
+  Assert.IsFalse( lResult.Success, 'Replace should fail with invalid Base64' );
+  Assert.IsTrue( Pos( 'Invalid Base64', lResult.ErrorMessage ) > 0, 'Error message should mention Base64' );
+end;
+
+procedure TTestStringOperations.TestBase64Replace_EmptyString;
+Var
+  lResult : TOperationResult;
+  lLines  : TStringList;
+  lBase64 : string;
+begin
+  TFile.WriteAllText( fTestFilePath, 'Test' + #13#10 + 'end.', TEncoding.GetEncoding( 1252 ) );
+
+  lBase64 := '';
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lBase64, 'New', 1, -1, False, False, False, ccNone, 0, '', False, True, False );
+
+  Assert.IsFalse( lResult.Success, 'Replace should fail with empty string' );
+  Assert.IsTrue( Pos( 'String not found', lResult.ErrorMessage ) > 0, 'Error message should mention string not found' );
 end;
 
 end.

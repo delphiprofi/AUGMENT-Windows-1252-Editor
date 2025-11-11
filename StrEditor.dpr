@@ -182,7 +182,7 @@ begin
               else WriteLn( 'Replacing "' + aParams.OldStr + '" with "' + aParams.NewStr + '" in ' + aParams.FilePath );
           end;
 
-        lResult := TStringOperations.StrReplace( aParams.FilePath, aParams.OldStr, aParams.NewStr, aParams.StartLine, aParams.EndLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.CaseConversion, aParams.IndentLevel, aParams.ConditionPattern, aParams.Verbose );
+        lResult := TStringOperations.StrReplace( aParams.FilePath, aParams.OldStr, aParams.NewStr, aParams.StartLine, aParams.EndLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.CaseConversion, aParams.IndentLevel, aParams.ConditionPattern, aParams.Verbose, aParams.OldStrIsBase64, aParams.NewStrIsBase64 );
 
         if lResult.Success then
           begin
@@ -224,7 +224,7 @@ begin
               else WriteLn( 'Inserting text after line ' + IntToStr( aParams.InsertAfterLine ) + ' in ' + aParams.FilePath );
           end;
 
-        lResult := TStringOperations.Insert( aParams.FilePath, aParams.Text, aParams.InsertAfterLine, aParams.DryRun, aParams.Backup, aParams.Diff );
+        lResult := TStringOperations.Insert( aParams.FilePath, aParams.Text, aParams.InsertAfterLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.TextIsBase64 );
 
         if lResult.Success then
           begin

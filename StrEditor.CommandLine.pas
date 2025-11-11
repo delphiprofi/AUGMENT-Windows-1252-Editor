@@ -75,6 +75,10 @@ Type
     ShowLineNumbers   : Boolean;
     TargetEncoding    : string;
     SourceEncoding    : string;
+    OldStrIsBase64    : Boolean;
+    NewStrIsBase64    : Boolean;
+    TextIsBase64      : Boolean;
+    RegexIsBase64     : Boolean;
   end;
 
   {$REGION 'Documentation'}
@@ -316,10 +320,10 @@ begin
              end;
     end
   else begin
-         if HasParam( '--old-str' )
+         if HasParam( '--old-str' ) or HasParam( '--old-str-base64' )
            then aParams.Command := ctStrReplace
            else
-         if HasParam( '--text' )
+         if HasParam( '--text' ) or HasParam( '--text-base64' )
            then aParams.Command := ctInsert
            else
          if HasParam( '--regex-pattern' ) then
@@ -336,27 +340,41 @@ begin
 
   if aParams.Command = ctStrReplace then
     begin
-      aParams.OldStr           := GetParamValue( '--old-str' );
-      aParams.NewStr           := GetParamValue( '--new-str' );
+      aParams.OldStrIsBase64 := HasParam( '--old-str-base64' );
+      aParams.NewStrIsBase64 := HasParam( '--new-str-base64' );
+
+      if aParams.OldStrIsBase64
+        then aParams.OldStr := GetParamValue( '--old-str-base64' )
+        else aParams.OldStr := GetParamValue( '--old-str' );
+
+      if aParams.NewStrIsBase64
+        then aParams.NewStr := GetParamValue( '--new-str-base64' )
+        else aParams.NewStr := GetParamValue( '--new-str' );
+
       aParams.StartLine        := StrToIntDef( GetParamValue( '--start-line' ), 0 );
       aParams.EndLine          := StrToIntDef( GetParamValue( '--end-line' ), 0 );
       aParams.ConditionPattern := GetParamValue( '--condition-pattern' );
 
       if aParams.OldStr = '' then
         begin
-          ShowError( 'Missing required parameter: --old-str' );
+          ShowError( 'Missing required parameter: --old-str or --old-str-base64' );
           Exit;
         end;
     end;
 
   if aParams.Command = ctInsert then
     begin
-      aParams.Text            := GetParamValue( '--text' );
+      aParams.TextIsBase64 := HasParam( '--text-base64' );
+
+      if aParams.TextIsBase64
+        then aParams.Text := GetParamValue( '--text-base64' )
+        else aParams.Text := GetParamValue( '--text' );
+
       aParams.InsertAfterLine := StrToIntDef( GetParamValue( '--insert-after-line' ), 0 );
 
       if aParams.Text = '' then
         begin
-          ShowError( 'Missing required parameter: --text' );
+          ShowError( 'Missing required parameter: --text or --text-base64' );
           Exit;
         end;
     end;
@@ -483,9 +501,12 @@ begin
   WriteLn( '  --files <pattern>          File pattern for batch processing (e.g. "*.pas")' );
   WriteLn( '  --old-str <old>            String to replace' );
   WriteLn( '  --new-str <new>            Replacement string' );
+  WriteLn( '  --old-str-base64 <base64>  String to replace (Base64-encoded)' );
+  WriteLn( '  --new-str-base64 <base64>  Replacement string (Base64-encoded)' );
   WriteLn( '  --start-line <n>           Start line for replacement (optional)' );
   WriteLn( '  --end-line <n>             End line for replacement (optional)' );
   WriteLn( '  --text <text>              Text to insert' );
+  WriteLn( '  --text-base64 <base64>     Text to insert (Base64-encoded)' );
   WriteLn( '  --insert-after-line <n>    Line number after which to insert' );
   WriteLn( '  --regex-pattern <pattern>  Regular expression pattern' );
   WriteLn( '  --regex-replace <repl>     Replacement string (supports $1, $2, etc.)' );
@@ -518,7 +539,9 @@ begin
   WriteLn;
   WriteLn( 'Examples:' );
   WriteLn( '  StrEditor.exe --file "test.pas" --old-str "nil" --new-str "NIL"' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --old-str-base64 "ICAgICB7JElGREVGIFBSRVVOSUNPREV9" --new-str-base64 "ICAgICB7JElGREVGIFVOSUNPREV9"' );
   WriteLn( '  StrEditor.exe --file "test.pas" --text "// Comment" --insert-after-line 10' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --text-base64 "eyRJRkRFRiBERUJVR30=" --insert-after-line 10' );
   WriteLn( '  StrEditor.exe --file "test.pas" --regex-pattern "f(\w+)" --regex-replace "l$1" -i' );
   WriteLn( '  StrEditor.exe --file "test.pas" --regex-pattern "procedure\s+(\w+)" --regex-test' );
   WriteLn( '  StrEditor.exe --file "test.pas" --detect-encoding' );
@@ -531,12 +554,16 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.4.0' );
-  WriteLn( 'Build: 2025-11-10' );
+  WriteLn( 'StrEditor v1.5.0' );
+  WriteLn( 'Build: 2025-11-11' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
-  WriteLn( 'New in v1.4:' );
-  WriteLn( '  - Reinterpret Encoding (--reinterpret-as <utf8|windows1252>)' );
+  WriteLn( 'New in v1.5:' );
+  WriteLn( '  - Base64-encoded parameters (--old-str-base64, --new-str-base64, --text-base64)' );
+  WriteLn( '  - Fixes PowerShell special character issues (Dollar-Zeichen, Backtick, etc.)' );
+  WriteLn;
+  WriteLn( 'Previous versions:' );
+  WriteLn( '  v1.4: Reinterpret Encoding (--reinterpret-as <utf8|windows1252>)' );
   WriteLn( '  - Repairs broken encodings (e.g., UTF-8 bytes in Windows-1252 files)' );
   WriteLn;
   WriteLn( 'New in v1.3:' );

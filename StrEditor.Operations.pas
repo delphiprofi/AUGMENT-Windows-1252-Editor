@@ -11,6 +11,7 @@ Uses
 , System.Classes
 , System.Math
 , System.IOUtils
+, System.NetEncoding
 , Winapi.Windows
 , StrEditor.Encoding
 , StrEditor.Macros
@@ -46,14 +47,14 @@ Type
       ///   Ersetzt einen String in einer Datei. Unterstützt Makros: {{LINE_NUMBER}}, {{FILE_NAME}}, {{DATE}}, {{TIME}}.
       /// </summary>
       {$ENDREGION}
-      class function StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = ''; const aVerbose : Boolean = false ) : TOperationResult;
+      class function StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = ''; const aVerbose : Boolean = false; const aOldStrIsBase64 : Boolean = false; const aNewStrIsBase64 : Boolean = false ) : TOperationResult;
 
       {$REGION 'Documentation'}
       /// <summary>
       ///   Fügt Text nach einer bestimmten Zeile ein
       /// </summary>
       {$ENDREGION}
-      class function Insert( const aFilePath : string; const aText : string; const aInsertAfterLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false ) : TOperationResult;
+      class function Insert( const aFilePath : string; const aText : string; const aInsertAfterLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aTextIsBase64 : Boolean = false ) : TOperationResult;
 
       {$REGION 'Documentation'}
       /// <summary>
@@ -81,22 +82,53 @@ Type
       class function FindAndReplace( const aLines : TStringList; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer; const aVerbose : Boolean = false ) : Boolean;
       class function InsertText( const aLines : TStringList; const aText : string; const aInsertAfterLine : Integer; const aFilePath : string ) : Boolean;
       class function CreateBackup( const aFilePath : string ) : Boolean;
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Dekodiert Base64-String zu normalem String
+      /// </summary>
+      {$ENDREGION}
+      class function DecodeBase64( const aBase64 : string; out aDecoded : string ) : Boolean;
   end;
 
 implementation
 
 { TStringOperations }
 
-class function TStringOperations.StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = ''; const aVerbose : Boolean = false ) : TOperationResult;
+class function TStringOperations.StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = ''; const aVerbose : Boolean = false; const aOldStrIsBase64 : Boolean = false; const aNewStrIsBase64 : Boolean = false ) : TOperationResult;
 Var
   lLines        : TStringList;
   lOriginal     : TStringList;
   lEncoding     : TEncodingType;
   lLinesChanged : Integer;
+  lOldStr       : string;
+  lNewStr       : string;
 begin
   Result.Success      := false;
   Result.ErrorMessage := '';
   Result.LinesChanged := 0;
+
+  if aOldStrIsBase64 then
+    begin
+      if not DecodeBase64( aOldStr, lOldStr ) then
+        begin
+          Result.ErrorMessage := 'Invalid Base64 string for old-str';
+          Exit;
+        end;
+    end
+  else
+    lOldStr := aOldStr;
+
+  if aNewStrIsBase64 then
+    begin
+      if not DecodeBase64( aNewStr, lNewStr ) then
+        begin
+          Result.ErrorMessage := 'Invalid Base64 string for new-str';
+          Exit;
+        end;
+    end
+  else
+    lNewStr := aNewStr;
 
   if not FileExists( aFilePath ) then
     begin
@@ -121,7 +153,7 @@ begin
 
     if aConditionPattern <> '' then
       begin
-        lLinesChanged := TConditionalHelper.ConditionalReplace( lLines, aConditionPattern, aOldStr, aNewStr, aStartLine, aEndLine );
+        lLinesChanged := TConditionalHelper.ConditionalReplace( lLines, aConditionPattern, lOldStr, lNewStr, aStartLine, aEndLine );
 
         if lLinesChanged = 0 then
           begin
@@ -130,9 +162,9 @@ begin
           end;
       end
     else begin
-           if not FindAndReplace( lLines, aOldStr, aNewStr, aStartLine, aEndLine, aFilePath, lLinesChanged, aVerbose ) then
+           if not FindAndReplace( lLines, lOldStr, lNewStr, aStartLine, aEndLine, aFilePath, lLinesChanged, aVerbose ) then
              begin
-               Result.ErrorMessage := 'String not found: ' + aOldStr;
+               Result.ErrorMessage := 'String not found: ' + lOldStr;
                Exit;
              end;
          end;
@@ -177,15 +209,27 @@ begin
   end;
 end;
 
-class function TStringOperations.Insert( const aFilePath : string; const aText : string; const aInsertAfterLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false ) : TOperationResult;
+class function TStringOperations.Insert( const aFilePath : string; const aText : string; const aInsertAfterLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aTextIsBase64 : Boolean = false ) : TOperationResult;
 Var
   lLines    : TStringList;
   lOriginal : TStringList;
   lEncoding : TEncodingType;
+  lText     : string;
 begin
   Result.Success      := false;
   Result.ErrorMessage := '';
   Result.LinesChanged := 0;
+
+  if aTextIsBase64 then
+    begin
+      if not DecodeBase64( aText, lText ) then
+        begin
+          Result.ErrorMessage := 'Invalid Base64 string for text';
+          Exit;
+        end;
+    end
+  else
+    lText := aText;
 
   if not FileExists( aFilePath ) then
     begin
@@ -208,7 +252,7 @@ begin
         lOriginal.Text := lLines.Text;
       end;
 
-    if not InsertText( lLines, aText, aInsertAfterLine, aFilePath ) then
+    if not InsertText( lLines, lText, aInsertAfterLine, aFilePath ) then
       begin
         Result.ErrorMessage := 'Invalid line number: ' + IntToStr( aInsertAfterLine );
         Exit;
@@ -620,6 +664,32 @@ begin
     Result.Success := true;
   finally
     lLines.Free;
+  end;
+end;
+
+class function TStringOperations.DecodeBase64( const aBase64 : string; out aDecoded : string ) : Boolean;
+Var
+  lBytes : TBytes;
+begin
+  Result := false;
+
+  if aBase64 = '' then
+    begin
+      aDecoded := '';
+      Result   := true;
+      Exit;
+    end;
+
+  try
+    lBytes   := TNetEncoding.Base64.DecodeStringToBytes( aBase64 );
+    aDecoded := TEncoding.UTF8.GetString( lBytes );
+    Result   := true;
+  except
+    on E : Exception do
+      begin
+        aDecoded := '';
+        Result   := false;
+      end;
   end;
 end;
 
