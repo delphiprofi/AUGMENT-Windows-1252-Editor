@@ -17,7 +17,7 @@ Type
   ///   Command-Typ
   /// </summary>
   {$ENDREGION}
-  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow );
+  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding );
 
   {$REGION 'Documentation'}
   /// <summary>
@@ -73,6 +73,7 @@ Type
     ShowTail          : Integer;
     ShowRaw           : Boolean;
     ShowLineNumbers   : Boolean;
+    TargetEncoding    : string;
   end;
 
   {$REGION 'Documentation'}
@@ -166,6 +167,31 @@ begin
       aParams.FilePath := GetParamValue( '--file' );
       aParams.Verbose  := HasParam( '--verbose' );
       Result           := true;
+      Exit;
+    end;
+
+  if HasParam( '--convert-encoding' ) then
+    begin
+      aParams.Command        := ctConvertEncoding;
+      aParams.FilePath       := GetParamValue( '--file' );
+      aParams.TargetEncoding := GetParamValue( '--to' );
+      aParams.Backup         := HasParam( '--backup' );
+      aParams.DryRun         := HasParam( '--dry-run' );
+      aParams.Verbose        := HasParam( '--verbose' );
+
+      if aParams.FilePath = '' then
+        begin
+          ShowError( 'Missing required parameter: --file' );
+          Exit;
+        end;
+
+      if aParams.TargetEncoding = '' then
+        begin
+          ShowError( 'Missing required parameter: --to (utf8 or windows1252)' );
+          Exit;
+        end;
+
+      Result := true;
       Exit;
     end;
 
@@ -420,6 +446,7 @@ begin
   WriteLn( '  StrEditor.exe --file <file> --regex-pattern <pattern> --regex-replace <replacement> [-i] [-m]' );
   WriteLn( '  StrEditor.exe --file <file> --regex-pattern <pattern> --regex-test [-i] [-m]' );
   WriteLn( '  StrEditor.exe --file <file> --detect-encoding' );
+  WriteLn( '  StrEditor.exe --file <file> --convert-encoding --to <utf8|windows1252> [--backup] [--dry-run]' );
   WriteLn( '  StrEditor.exe --file <file> --show [--head <n>] [--tail <n>] [--line-numbers] [--raw]' );
   WriteLn( '  StrEditor.exe --help' );
   WriteLn( '  StrEditor.exe --version' );
@@ -448,6 +475,8 @@ begin
   WriteLn( '  --undo                     Restore backup file (requires --file)' );
   WriteLn( '  --config <file>            Load parameters from JSON config file' );
   WriteLn( '  --detect-encoding          Detect and show file encoding (requires --file)' );
+  WriteLn( '  --convert-encoding         Convert file encoding (requires --file and --to)' );
+  WriteLn( '  --to <encoding>            Target encoding: utf8 or windows1252' );
   WriteLn( '  --show, --cat              Show file content (encoding-aware)' );
   WriteLn( '  --head <n>                 Show first N lines (aliases: --first, --total-count)' );
   WriteLn( '  --tail <n>                 Show last N lines (alias: --last)' );
@@ -465,6 +494,7 @@ begin
   WriteLn( '  StrEditor.exe --file "test.pas" --regex-pattern "f(\w+)" --regex-replace "l$1" -i' );
   WriteLn( '  StrEditor.exe --file "test.pas" --regex-pattern "procedure\s+(\w+)" --regex-test' );
   WriteLn( '  StrEditor.exe --file "test.pas" --detect-encoding' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --convert-encoding --to windows1252 --backup' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --head 10 --line-numbers' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --tail 5' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --start-line 10 --end-line 20' );
@@ -472,9 +502,12 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.2.0' );
+  WriteLn( 'StrEditor v1.3.0' );
   WriteLn( 'Build: 2025-11-10' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
+  WriteLn;
+  WriteLn( 'New in v1.3:' );
+  WriteLn( '  - Convert Encoding (--convert-encoding --to <utf8|windows1252>)' );
   WriteLn;
   WriteLn( 'New in v1.2:' );
   WriteLn( '  - Show/Cat Command (--show, --cat)' );
