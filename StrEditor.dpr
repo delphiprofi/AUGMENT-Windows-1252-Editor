@@ -10,12 +10,199 @@ Uses
 , StrEditor.Operations
 , StrEditor.CommandLine
 , StrEditor.Regex
+, StrEditor.Batch
+, StrEditor.Undo
+, StrEditor.Config
 ;
+
+procedure ProcessSingleFile( const aParams : TCommandLineParams );
+Var
+  lResult      : TOperationResult;
+  lRegexResult : TRegexOperationResult;
+begin
+  case aParams.Command of
+    ctHelp:
+      begin
+        TCommandLineParser.ShowHelp;
+        ExitCode := Ord( ecSuccess );
+      end;
+
+    ctVersion:
+      begin
+        TCommandLineParser.ShowVersion;
+        ExitCode := Ord( ecSuccess );
+      end;
+
+    ctStrReplace:
+      begin
+        if aParams.Verbose then
+          begin
+            if aParams.DryRun
+              then WriteLn( '[DRY-RUN] Replacing "' + aParams.OldStr + '" with "' + aParams.NewStr + '" in ' + aParams.FilePath )
+              else WriteLn( 'Replacing "' + aParams.OldStr + '" with "' + aParams.NewStr + '" in ' + aParams.FilePath );
+          end;
+
+        lResult := TStringOperations.StrReplace( aParams.FilePath, aParams.OldStr, aParams.NewStr, aParams.StartLine, aParams.EndLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.CaseConversion, aParams.IndentLevel, aParams.ConditionPattern );
+
+        if lResult.Success then
+          begin
+            if aParams.Verbose then
+              begin
+                if aParams.DryRun
+                  then WriteLn( '[DRY-RUN] Would change ' + IntToStr( lResult.LinesChanged ) + ' line(s)' )
+                  else WriteLn( 'Success: ' + IntToStr( lResult.LinesChanged ) + ' line(s) changed' );
+              end;
+
+            if aParams.Stats then
+              begin
+                WriteLn;
+                WriteLn( '--- Statistics ---' );
+                WriteLn( 'Lines changed: ' + IntToStr( lResult.LinesChanged ) );
+                WriteLn( 'Operation: String Replace' );
+              end;
+
+            ExitCode := Ord( ecSuccess );
+          end
+        else begin
+               WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+
+               if Pos( 'not found', lResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecFileNotFound )
+                 else
+               if Pos( 'String not found', lResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecStringNotFound )
+                 else ExitCode := Ord( ecEncodingError );
+             end;
+      end;
+
+    ctInsert:
+      begin
+        if aParams.Verbose then
+          begin
+            if aParams.DryRun
+              then WriteLn( '[DRY-RUN] Inserting text after line ' + IntToStr( aParams.InsertAfterLine ) + ' in ' + aParams.FilePath )
+              else WriteLn( 'Inserting text after line ' + IntToStr( aParams.InsertAfterLine ) + ' in ' + aParams.FilePath );
+          end;
+
+        lResult := TStringOperations.Insert( aParams.FilePath, aParams.Text, aParams.InsertAfterLine, aParams.DryRun, aParams.Backup, aParams.Diff );
+
+        if lResult.Success then
+          begin
+            if aParams.Verbose then
+              begin
+                if aParams.DryRun
+                  then WriteLn( '[DRY-RUN] Would insert text' )
+                  else WriteLn( 'Success: Text inserted' );
+              end;
+
+            if aParams.Stats then
+              begin
+                WriteLn;
+                WriteLn( '--- Statistics ---' );
+                WriteLn( 'Lines inserted: ' + IntToStr( lResult.LinesChanged ) );
+                WriteLn( 'Operation: Insert' );
+              end;
+
+            ExitCode := Ord( ecSuccess );
+          end
+        else begin
+               WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+
+               if Pos( 'not found', lResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecFileNotFound )
+                 else ExitCode := Ord( ecEncodingError );
+             end;
+      end;
+
+    ctRegexReplace:
+      begin
+        if aParams.Verbose then
+          begin
+            if aParams.DryRun
+              then WriteLn( '[DRY-RUN] Regex replacing pattern "' + aParams.RegexPattern + '" with "' + aParams.RegexReplace + '" in ' + aParams.FilePath )
+              else WriteLn( 'Regex replacing pattern "' + aParams.RegexPattern + '" with "' + aParams.RegexReplace + '" in ' + aParams.FilePath );
+          end;
+
+        lRegexResult := TRegexOperations.RegexReplace( aParams.FilePath, aParams.RegexPattern, aParams.RegexReplace, aParams.StartLine, aParams.EndLine, aParams.CaseInsensitive, aParams.MultiLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.CaseConversion, aParams.IndentLevel );
+
+        if lRegexResult.Success then
+          begin
+            if aParams.Verbose then
+              begin
+                if aParams.DryRun
+                  then WriteLn( '[DRY-RUN] Would change ' + IntToStr( lRegexResult.LinesChanged ) + ' line(s), ' + IntToStr( lRegexResult.MatchCount ) + ' match(es) found' )
+                  else WriteLn( 'Success: ' + IntToStr( lRegexResult.LinesChanged ) + ' line(s) changed, ' + IntToStr( lRegexResult.MatchCount ) + ' match(es) found' );
+              end;
+
+            if aParams.Stats then
+              begin
+                WriteLn;
+                WriteLn( '--- Statistics ---' );
+                WriteLn( 'Lines changed: ' + IntToStr( lRegexResult.LinesChanged ) );
+                WriteLn( 'Matches found: ' + IntToStr( lRegexResult.MatchCount ) );
+                WriteLn( 'Operation: Regex Replace' );
+              end;
+
+            ExitCode := Ord( ecSuccess );
+        end
+        else begin
+               WriteLn( 'ERROR: ' + lRegexResult.ErrorMessage );
+
+               if Pos( 'not found', lRegexResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecStringNotFound )
+                 else
+               if Pos( 'File not found', lRegexResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecFileNotFound )
+                 else ExitCode := Ord( ecEncodingError );
+             end;
+      end;
+
+    ctRegexTest:
+      begin
+        if aParams.Verbose then
+          WriteLn( 'Testing regex pattern "' + aParams.RegexPattern + '" in ' + aParams.FilePath );
+
+        lRegexResult := TRegexOperations.RegexTest( aParams.FilePath, aParams.RegexPattern, aParams.StartLine, aParams.EndLine, aParams.CaseInsensitive, aParams.MultiLine );
+
+        if lRegexResult.Success then
+          begin
+            WriteLn( 'Pattern found: ' + IntToStr( lRegexResult.MatchCount ) + ' match(es)' );
+
+            if aParams.Stats then
+              begin
+                WriteLn;
+                WriteLn( '--- Statistics ---' );
+                WriteLn( 'Matches found: ' + IntToStr( lRegexResult.MatchCount ) );
+                WriteLn( 'Operation: Regex Test' );
+              end;
+
+            ExitCode := Ord( ecSuccess );
+          end
+        else begin
+               WriteLn( 'ERROR: ' + lRegexResult.ErrorMessage );
+
+               if Pos( 'not found', lRegexResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecStringNotFound )
+                 else
+               if Pos( 'File not found', lRegexResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecFileNotFound )
+                 else ExitCode := Ord( ecEncodingError );
+             end;
+      end;
+
+    else begin
+           TCommandLineParser.ShowError( 'Unknown command' );
+           ExitCode := Ord( ecParameterError );
+         end;
+  end; // of case
+end;
 
 Var
   lParams      : TCommandLineParams;
-  lResult      : TOperationResult;
-  lRegexResult : TRegexOperationResult;
+  lFiles       : TArray<string>;
+  lFile        : string;
+  lTotalFiles  : Integer;
+  lSuccessful  : Integer;
 
 begin
   try
@@ -25,147 +212,95 @@ begin
         Exit;
       end;
 
-    case lParams.Command of
-      ctHelp:
-        begin
-          TCommandLineParser.ShowHelp;
-          ExitCode := Ord( ecSuccess );
-        end;
+    if lParams.ConfigFile <> '' then
+      begin
+        WriteLn( 'Loading config from: ' + lParams.ConfigFile );
 
-      ctVersion:
-        begin
-          TCommandLineParser.ShowVersion;
-          ExitCode := Ord( ecSuccess );
-        end;
+        if TConfigHelper.IsMultipleOperationsConfig( lParams.ConfigFile ) then
+          begin
+            Var lOperations : TArray<TCommandLineParams>;
 
-      ctStrReplace:
-        begin
-          if lParams.Verbose then
-            begin
-              if lParams.DryRun
-                then WriteLn( '[DRY-RUN] Replacing "' + lParams.OldStr + '" with "' + lParams.NewStr + '" in ' + lParams.FilePath )
-                else WriteLn( 'Replacing "' + lParams.OldStr + '" with "' + lParams.NewStr + '" in ' + lParams.FilePath );
-            end;
+            if not TConfigHelper.LoadMultipleOperations( lParams.ConfigFile, lOperations ) then
+              begin
+                ExitCode := Ord( ecJSONParseError );
+                Exit;
+              end;
 
-          lResult := TStringOperations.StrReplace( lParams.FilePath, lParams.OldStr, lParams.NewStr, lParams.StartLine, lParams.EndLine, lParams.DryRun, lParams.Backup );
+            WriteLn( 'Config loaded successfully - ' + IntToStr( Length( lOperations ) ) + ' operation(s)' );
 
-          if lResult.Success then
-            begin
-              if lParams.Verbose then
-                begin
-                  if lParams.DryRun
-                    then WriteLn( '[DRY-RUN] Would change ' + IntToStr( lResult.LinesChanged ) + ' line(s)' )
-                    else WriteLn( 'Success: ' + IntToStr( lResult.LinesChanged ) + ' line(s) changed' );
-                end;
+            for Var lOp in lOperations do
+              begin
+                if lOp.Verbose then
+                  WriteLn( 'Executing operation: ' + lOp.FilePath );
 
-              ExitCode := Ord( ecSuccess );
-            end
-          else begin
-                 WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+                ProcessSingleFile( lOp );
+              end;
 
-                 if Pos( 'not found', lResult.ErrorMessage ) > 0
-                   then ExitCode := Ord( ecFileNotFound )
-                   else
-                 if Pos( 'String not found', lResult.ErrorMessage ) > 0
-                   then ExitCode := Ord( ecStringNotFound )
-                   else ExitCode := Ord( ecEncodingError );
-               end;
-        end;
+            Exit;
+          end
+        else begin
+               if not TConfigHelper.LoadFromJSON( lParams.ConfigFile, lParams ) then
+                 begin
+                   ExitCode := Ord( ecJSONParseError );
+                   Exit;
+                 end;
 
-      ctInsert:
-        begin
-          if lParams.Verbose then
-            begin
-              if lParams.DryRun
-                then WriteLn( '[DRY-RUN] Inserting text after line ' + IntToStr( lParams.InsertAfterLine ) + ' in ' + lParams.FilePath )
-                else WriteLn( 'Inserting text after line ' + IntToStr( lParams.InsertAfterLine ) + ' in ' + lParams.FilePath );
-            end;
+               WriteLn( 'Config loaded successfully' );
+             end;
+      end;
 
-          lResult := TStringOperations.Insert( lParams.FilePath, lParams.Text, lParams.InsertAfterLine, lParams.DryRun, lParams.Backup );
+    if lParams.Command = ctUndo then
+      begin
+        if lParams.Verbose then
+          WriteLn( 'Undoing changes for: ' + lParams.FilePath );
 
-          if lResult.Success then
-            begin
-              if lParams.Verbose then
-                begin
-                  if lParams.DryRun
-                    then WriteLn( '[DRY-RUN] Would insert text' )
-                    else WriteLn( 'Success: Text inserted' );
-                end;
+        if TUndoHelper.UndoChanges( lParams.FilePath, lParams.Verbose )
+          then ExitCode := Ord( ecSuccess )
+          else ExitCode := Ord( ecFileNotFound );
 
-              ExitCode := Ord( ecSuccess );
-            end
-          else begin
-                 WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+        Exit;
+      end;
 
-                 if Pos( 'not found', lResult.ErrorMessage ) > 0
-                   then ExitCode := Ord( ecFileNotFound )
-                   else ExitCode := Ord( ecEncodingError );
-               end;
-        end;
+    if lParams.FilePattern <> '' then
+      begin
+        lFiles := TBatchProcessor.FindFiles( lParams.FilePattern );
 
-      ctRegexReplace:
-        begin
-          if lParams.Verbose then
-            begin
-              if lParams.DryRun
-                then WriteLn( '[DRY-RUN] Regex replacing pattern "' + lParams.RegexPattern + '" with "' + lParams.RegexReplace + '" in ' + lParams.FilePath )
-                else WriteLn( 'Regex replacing pattern "' + lParams.RegexPattern + '" with "' + lParams.RegexReplace + '" in ' + lParams.FilePath );
-            end;
+        if Length( lFiles ) = 0 then
+          begin
+            WriteLn( 'ERROR: No files found matching pattern: ' + lParams.FilePattern );
+            ExitCode := Ord( ecFileNotFound );
+            Exit;
+          end;
 
-          lRegexResult := TRegexOperations.RegexReplace( lParams.FilePath, lParams.RegexPattern, lParams.RegexReplace, lParams.StartLine, lParams.EndLine, lParams.CaseInsensitive, lParams.MultiLine, lParams.DryRun, lParams.Backup );
+        lTotalFiles := Length( lFiles );
+        lSuccessful := 0;
 
-          if lRegexResult.Success then
-            begin
-              if lParams.Verbose then
-                begin
-                  if lParams.DryRun
-                    then WriteLn( '[DRY-RUN] Would change ' + IntToStr( lRegexResult.LinesChanged ) + ' line(s), ' + IntToStr( lRegexResult.MatchCount ) + ' match(es) found' )
-                    else WriteLn( 'Success: ' + IntToStr( lRegexResult.LinesChanged ) + ' line(s) changed, ' + IntToStr( lRegexResult.MatchCount ) + ' match(es) found' );
-                end;
+        if lParams.Verbose then
+          WriteLn( 'Processing ' + IntToStr( lTotalFiles ) + ' file(s)...' );
 
-              ExitCode := Ord( ecSuccess );
-            end
-          else begin
-                 WriteLn( 'ERROR: ' + lRegexResult.ErrorMessage );
+        for lFile in lFiles do
+          begin
+            lParams.FilePath := lFile;
 
-                 if Pos( 'not found', lRegexResult.ErrorMessage ) > 0
-                   then ExitCode := Ord( ecStringNotFound )
-                   else
-                 if Pos( 'File not found', lRegexResult.ErrorMessage ) > 0
-                   then ExitCode := Ord( ecFileNotFound )
-                   else ExitCode := Ord( ecEncodingError );
-               end;
-        end;
+            if lParams.Verbose then
+              WriteLn( '--- Processing: ' + lFile );
 
-      ctRegexTest:
-        begin
-          if lParams.Verbose then
-            WriteLn( 'Testing regex pattern "' + lParams.RegexPattern + '" in ' + lParams.FilePath );
+            ProcessSingleFile( lParams );
 
-          lRegexResult := TRegexOperations.RegexTest( lParams.FilePath, lParams.RegexPattern, lParams.StartLine, lParams.EndLine, lParams.CaseInsensitive, lParams.MultiLine );
+            if ExitCode = Ord( ecSuccess ) then
+              Inc( lSuccessful );
+          end;
 
-          if lRegexResult.Success then
-            begin
-              WriteLn( 'Pattern found: ' + IntToStr( lRegexResult.MatchCount ) + ' match(es)' );
-              ExitCode := Ord( ecSuccess );
-            end
-          else begin
-                 WriteLn( 'ERROR: ' + lRegexResult.ErrorMessage );
+        if lParams.Verbose then
+          WriteLn( 'Batch processing complete: ' + IntToStr( lSuccessful ) + '/' + IntToStr( lTotalFiles ) + ' file(s) processed successfully' );
 
-                 if Pos( 'not found', lRegexResult.ErrorMessage ) > 0
-                   then ExitCode := Ord( ecStringNotFound )
-                   else
-                 if Pos( 'File not found', lRegexResult.ErrorMessage ) > 0
-                   then ExitCode := Ord( ecFileNotFound )
-                   else ExitCode := Ord( ecEncodingError );
-               end;
-        end;
-
-      else begin
-             TCommandLineParser.ShowError( 'Unknown command' );
-             ExitCode := Ord( ecParameterError );
-           end;
-    end;
+        if lSuccessful = lTotalFiles
+          then ExitCode := Ord( ecSuccess )
+          else ExitCode := Ord( ecEncodingError );
+      end
+    else begin
+           ProcessSingleFile( lParams );
+         end;
   except
     on E : Exception do
       begin

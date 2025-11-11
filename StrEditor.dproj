@@ -214,6 +214,14 @@
         <DCCReference Include="StrEditor.CommandLine.pas"/>
         <DCCReference Include="StrEditor.Regex.pas"/>
         <DCCReference Include="StrEditor.Macros.pas"/>
+        <DCCReference Include="StrEditor.Batch.pas"/>
+        <DCCReference Include="StrEditor.Diff.pas"/>
+        <DCCReference Include="StrEditor.CaseConversion.pas"/>
+        <DCCReference Include="StrEditor.Indent.pas"/>
+        <DCCReference Include="StrEditor.Undo.pas"/>
+        <DCCReference Include="StrEditor.Config.pas"/>
+        <DCCReference Include="StrEditor.Conditional.pas"/>
+        <DCCReference Include="TextDiff.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

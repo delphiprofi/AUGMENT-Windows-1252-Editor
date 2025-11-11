@@ -17,7 +17,14 @@ Type
   ///   Command-Typ
   /// </summary>
   {$ENDREGION}
-  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctRegexReplace, ctRegexTest, ctHelp, ctVersion );
+  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion );
+
+  {$REGION 'Documentation'}
+  /// <summary>
+  ///   Case Conversion Type
+  /// </summary>
+  {$ENDREGION}
+  TCaseConversion = ( ccNone, ccUpper, ccLower, ccTitle );
 
   {$REGION 'Documentation'}
   /// <summary>
@@ -39,22 +46,29 @@ Type
   /// </summary>
   {$ENDREGION}
   TCommandLineParams = record
-    Command         : TCommandType;
-    FilePath        : string;
-    OldStr          : string;
-    NewStr          : string;
-    StartLine       : Integer;
-    EndLine         : Integer;
-    InsertAfterLine : Integer;
-    Text            : string;
-    JSONFile        : string;
-    RegexPattern    : string;
-    RegexReplace    : string;
-    CaseInsensitive : Boolean;
-    MultiLine       : Boolean;
-    Backup          : Boolean;
-    DryRun          : Boolean;
-    Verbose         : Boolean;
+    Command           : TCommandType;
+    FilePath          : string;
+    FilePattern       : string;
+    OldStr            : string;
+    NewStr            : string;
+    StartLine         : Integer;
+    EndLine           : Integer;
+    InsertAfterLine   : Integer;
+    Text              : string;
+    JSONFile          : string;
+    ConfigFile        : string;
+    RegexPattern      : string;
+    RegexReplace      : string;
+    ConditionPattern  : string;
+    CaseInsensitive   : Boolean;
+    MultiLine         : Boolean;
+    Backup            : Boolean;
+    DryRun            : Boolean;
+    Diff              : Boolean;
+    Stats             : Boolean;
+    CaseConversion    : TCaseConversion;
+    IndentLevel       : Integer;
+    Verbose           : Boolean;
   end;
 
   {$REGION 'Documentation'}
@@ -107,6 +121,7 @@ begin
 
   aParams.Command         := ctUnknown;
   aParams.FilePath        := '';
+  aParams.FilePattern     := '';
   aParams.OldStr          := '';
   aParams.NewStr          := '';
   aParams.StartLine       := 0;
@@ -120,6 +135,7 @@ begin
   aParams.MultiLine       := false;
   aParams.Backup          := false;
   aParams.DryRun          := false;
+  aParams.Diff            := false;
   aParams.Verbose         := false;
 
   if HasParam( '--help' ) or HasParam( '-h' ) then
@@ -136,11 +152,36 @@ begin
       Exit;
     end;
 
-  aParams.FilePath := GetParamValue( '--file' );
+  aParams.ConfigFile := GetParamValue( '--config' );
 
-  if aParams.FilePath = '' then
+  if aParams.ConfigFile <> '' then
     begin
-      ShowError( 'Missing required parameter: --file' );
+      Result := true;
+      Exit;
+    end;
+
+  if HasParam( '--undo' ) then
+    begin
+      aParams.Command  := ctUndo;
+      aParams.FilePath := GetParamValue( '--file' );
+      aParams.Verbose  := HasParam( '--verbose' );
+
+      if aParams.FilePath = '' then
+        begin
+          ShowError( 'Missing required parameter: --file' );
+          Exit;
+        end;
+
+      Result := true;
+      Exit;
+    end;
+
+  aParams.FilePath    := GetParamValue( '--file' );
+  aParams.FilePattern := GetParamValue( '--files' );
+
+  if ( aParams.FilePath = '' ) and ( aParams.FilePattern = '' ) then
+    begin
+      ShowError( 'Missing required parameter: --file or --files' );
       Exit;
     end;
 
@@ -185,10 +226,11 @@ begin
 
   if aParams.Command = ctStrReplace then
     begin
-      aParams.OldStr    := GetParamValue( '--old-str' );
-      aParams.NewStr    := GetParamValue( '--new-str' );
-      aParams.StartLine := StrToIntDef( GetParamValue( '--start-line' ), 0 );
-      aParams.EndLine   := StrToIntDef( GetParamValue( '--end-line' ), 0 );
+      aParams.OldStr           := GetParamValue( '--old-str' );
+      aParams.NewStr           := GetParamValue( '--new-str' );
+      aParams.StartLine        := StrToIntDef( GetParamValue( '--start-line' ), 0 );
+      aParams.EndLine          := StrToIntDef( GetParamValue( '--end-line' ), 0 );
+      aParams.ConditionPattern := GetParamValue( '--condition-pattern' );
 
       if aParams.OldStr = '' then
         begin
@@ -234,7 +276,44 @@ begin
   aParams.JSONFile := GetParamValue( '--json' );
   aParams.Backup   := HasParam( '--backup' );
   aParams.DryRun   := HasParam( '--dry-run' );
+  aParams.Diff     := HasParam( '--diff' );
+  aParams.Stats    := HasParam( '--stats' );
   aParams.Verbose  := HasParam( '--verbose' );
+
+  Var lCase := GetParamValue( '--case' );
+
+  if lCase <> '' then
+    begin
+      if SameText( lCase, 'upper' )
+        then aParams.CaseConversion := ccUpper
+        else
+      if SameText( lCase, 'lower' )
+        then aParams.CaseConversion := ccLower
+        else
+      if SameText( lCase, 'title' )
+        then aParams.CaseConversion := ccTitle
+        else begin
+               ShowError( 'Invalid case conversion: ' + lCase + ' (use upper, lower, or title)' );
+               Exit;
+             end;
+    end
+  else aParams.CaseConversion := ccNone;
+
+  Var lIndent := GetParamValue( '--indent' );
+
+  if lIndent <> '' then
+    begin
+      try
+        aParams.IndentLevel := StrToInt( lIndent );
+      except
+        on E : Exception do
+          begin
+            ShowError( 'Invalid indent level: ' + lIndent + ' (use integer value, e.g. +2 or -2)' );
+            Exit;
+          end;
+      end;
+    end
+  else aParams.IndentLevel := 0;
 
   Result := true;
 end;
@@ -287,6 +366,7 @@ begin
   WriteLn;
   WriteLn( 'Parameters:' );
   WriteLn( '  --file <file>              File to process' );
+  WriteLn( '  --files <pattern>          File pattern for batch processing (e.g. "*.pas")' );
   WriteLn( '  --old-str <old>            String to replace' );
   WriteLn( '  --new-str <new>            Replacement string' );
   WriteLn( '  --start-line <n>           Start line for replacement (optional)' );
@@ -296,10 +376,17 @@ begin
   WriteLn( '  --regex-pattern <pattern>  Regular expression pattern' );
   WriteLn( '  --regex-replace <repl>     Replacement string (supports $1, $2, etc.)' );
   WriteLn( '  --regex-test               Test regex without making changes' );
+  WriteLn( '  --condition-pattern <pat>  Only replace if line matches this regex pattern' );
   WriteLn( '  -i, --case-insensitive     Case-insensitive regex matching' );
   WriteLn( '  -m, --multiline            Multi-line regex matching' );
   WriteLn( '  --backup                   Create backup file before changes' );
   WriteLn( '  --dry-run                  Show changes without modifying file' );
+  WriteLn( '  --diff                     Show differences between original and modified' );
+  WriteLn( '  --stats                    Show statistics after operation' );
+  WriteLn( '  --case <type>              Case conversion: upper, lower, title' );
+  WriteLn( '  --indent <n>               Indent (+n) or outdent (-n) lines' );
+  WriteLn( '  --undo                     Restore backup file (requires --file)' );
+  WriteLn( '  --config <file>            Load parameters from JSON config file' );
   WriteLn( '  --verbose                  Show detailed information' );
   WriteLn( '  --help, -h                 Show this help' );
   WriteLn( '  --version, -v              Show version' );

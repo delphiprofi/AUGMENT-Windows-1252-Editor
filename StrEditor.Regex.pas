@@ -8,7 +8,11 @@ Uses
   System.RegularExpressions,
   Winapi.Windows,
   StrEditor.Encoding,
-  StrEditor.Macros;
+  StrEditor.Macros,
+  StrEditor.Diff,
+  StrEditor.CommandLine,
+  StrEditor.CaseConversion,
+  StrEditor.Indent;
 
 Type
   {$REGION 'Documentation'}
@@ -35,7 +39,7 @@ Type
       ///   Ersetzt Text basierend auf einem Regular Expression Pattern. Unterstützt Makros: {{LINE_NUMBER}}, {{FILE_NAME}}, {{DATE}}, {{TIME}}.
       /// </summary>
       {$ENDREGION}
-      class function RegexReplace( const aFilePath : string; const aPattern : string; const aReplacement : string; const aStartLine : Integer; const aEndLine : Integer; const aCaseInsensitive : Boolean; const aMultiLine : Boolean; const aDryRun : Boolean = false; const aBackup : Boolean = false ) : TRegexOperationResult;
+      class function RegexReplace( const aFilePath : string; const aPattern : string; const aReplacement : string; const aStartLine : Integer; const aEndLine : Integer; const aCaseInsensitive : Boolean; const aMultiLine : Boolean; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0 ) : TRegexOperationResult;
 
       {$REGION 'Documentation'}
       /// <summary>
@@ -54,9 +58,10 @@ implementation
 
 { TRegexOperations }
 
-class function TRegexOperations.RegexReplace( const aFilePath : string; const aPattern : string; const aReplacement : string; const aStartLine : Integer; const aEndLine : Integer; const aCaseInsensitive : Boolean; const aMultiLine : Boolean; const aDryRun : Boolean = false; const aBackup : Boolean = false ) : TRegexOperationResult;
+class function TRegexOperations.RegexReplace( const aFilePath : string; const aPattern : string; const aReplacement : string; const aStartLine : Integer; const aEndLine : Integer; const aCaseInsensitive : Boolean; const aMultiLine : Boolean; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0 ) : TRegexOperationResult;
 Var
   lLines        : TStringList;
+  lOriginal     : TStringList;
   lEncoding     : TEncodingType;
   lLinesChanged : Integer;
   lMatchCount   : Integer;
@@ -78,12 +83,32 @@ begin
       Exit;
     end;
 
+  lOriginal := NIL;
+
   try
+    if aDiff then
+      begin
+        lOriginal := TStringList.Create;
+        lOriginal.Text := lLines.Text;
+      end;
+
     if not FindAndReplaceRegex( lLines, aPattern, aReplacement, aStartLine, aEndLine, aCaseInsensitive, aMultiLine, aFilePath, lLinesChanged, lMatchCount ) then
       begin
         Result.ErrorMessage := 'Pattern not found: ' + aPattern;
         Exit;
       end;
+
+    if aCaseConversion <> ccNone then
+      begin
+        for Var i := 0 to lLines.Count - 1 do
+          lLines[ i ] := TCaseConversionHelper.ConvertCase( lLines[ i ], aCaseConversion );
+      end;
+
+    if aIndentLevel <> 0 then
+      TIndentHelper.ApplyIndent( lLines, aIndentLevel, aStartLine, aEndLine );
+
+    if aDiff then
+      TDiffHelper.ShowDiff( lOriginal, lLines, aFilePath );
 
     if not aDryRun then
       begin
@@ -108,6 +133,9 @@ begin
     Result.MatchCount   := lMatchCount;
   finally
     lLines.Free;
+
+    if lOriginal <> NIL then
+      lOriginal.Free;
   end;
 end;
 

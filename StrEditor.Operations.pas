@@ -12,6 +12,11 @@ Uses
 , Winapi.Windows
 , StrEditor.Encoding
 , StrEditor.Macros
+, StrEditor.Diff
+, StrEditor.CommandLine
+, StrEditor.CaseConversion
+, StrEditor.Indent
+, StrEditor.Conditional
 ;
 
 Type
@@ -38,14 +43,14 @@ Type
       ///   Ersetzt einen String in einer Datei. Unterstützt Makros: {{LINE_NUMBER}}, {{FILE_NAME}}, {{DATE}}, {{TIME}}.
       /// </summary>
       {$ENDREGION}
-      class function StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false ) : TOperationResult;
+      class function StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = '' ) : TOperationResult;
 
       {$REGION 'Documentation'}
       /// <summary>
       ///   Fügt Text nach einer bestimmten Zeile ein
       /// </summary>
       {$ENDREGION}
-      class function Insert( const aFilePath : string; const aText : string; const aInsertAfterLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false ) : TOperationResult;
+      class function Insert( const aFilePath : string; const aText : string; const aInsertAfterLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false ) : TOperationResult;
 
     strict private
       class function FindAndReplace( const aLines : TStringList; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer ) : Boolean;
@@ -57,9 +62,10 @@ implementation
 
 { TStringOperations }
 
-class function TStringOperations.StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false ) : TOperationResult;
+class function TStringOperations.StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = '' ) : TOperationResult;
 Var
   lLines        : TStringList;
+  lOriginal     : TStringList;
   lEncoding     : TEncodingType;
   lLinesChanged : Integer;
 begin
@@ -79,12 +85,44 @@ begin
       Exit;
     end;
 
+  lOriginal := NIL;
+
   try
-    if not FindAndReplace( lLines, aOldStr, aNewStr, aStartLine, aEndLine, aFilePath, lLinesChanged ) then
+    if aDiff then
       begin
-        Result.ErrorMessage := 'String not found: ' + aOldStr;
-        Exit;
+        lOriginal := TStringList.Create;
+        lOriginal.Text := lLines.Text;
       end;
+
+    if aConditionPattern <> '' then
+      begin
+        lLinesChanged := TConditionalHelper.ConditionalReplace( lLines, aConditionPattern, aOldStr, aNewStr, aStartLine, aEndLine );
+
+        if lLinesChanged = 0 then
+          begin
+            Result.ErrorMessage := 'No lines matched condition: ' + aConditionPattern;
+            Exit;
+          end;
+      end
+    else begin
+           if not FindAndReplace( lLines, aOldStr, aNewStr, aStartLine, aEndLine, aFilePath, lLinesChanged ) then
+             begin
+               Result.ErrorMessage := 'String not found: ' + aOldStr;
+               Exit;
+             end;
+         end;
+
+    if aCaseConversion <> ccNone then
+      begin
+        for Var i := 0 to lLines.Count - 1 do
+          lLines[ i ] := TCaseConversionHelper.ConvertCase( lLines[ i ], aCaseConversion );
+      end;
+
+    if aIndentLevel <> 0 then
+      TIndentHelper.ApplyIndent( lLines, aIndentLevel, aStartLine, aEndLine );
+
+    if aDiff then
+      TDiffHelper.ShowDiff( lOriginal, lLines, aFilePath );
 
     if not aDryRun then
       begin
@@ -108,12 +146,16 @@ begin
     Result.LinesChanged := lLinesChanged;
   finally
     lLines.Free;
+
+    if lOriginal <> NIL then
+      lOriginal.Free;
   end;
 end;
 
-class function TStringOperations.Insert( const aFilePath : string; const aText : string; const aInsertAfterLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false ) : TOperationResult;
+class function TStringOperations.Insert( const aFilePath : string; const aText : string; const aInsertAfterLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false ) : TOperationResult;
 Var
   lLines    : TStringList;
+  lOriginal : TStringList;
   lEncoding : TEncodingType;
 begin
   Result.Success      := false;
@@ -132,12 +174,23 @@ begin
       Exit;
     end;
 
+  lOriginal := NIL;
+
   try
+    if aDiff then
+      begin
+        lOriginal := TStringList.Create;
+        lOriginal.Text := lLines.Text;
+      end;
+
     if not InsertText( lLines, aText, aInsertAfterLine, aFilePath ) then
       begin
         Result.ErrorMessage := 'Invalid line number: ' + IntToStr( aInsertAfterLine );
         Exit;
       end;
+
+    if aDiff then
+      TDiffHelper.ShowDiff( lOriginal, lLines, aFilePath );
 
     if not aDryRun then
       begin
@@ -161,6 +214,9 @@ begin
     Result.LinesChanged := 1;
   finally
     lLines.Free;
+
+    if lOriginal <> NIL then
+      lOriginal.Free;
   end;
 end;
 
