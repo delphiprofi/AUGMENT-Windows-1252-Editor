@@ -1,0 +1,69 @@
+# Delphi compiled files
+*.dcu
+*.exe
+*.dll
+*.bpl
+*.dcp
+*.so
+*.apk
+*.drc
+*.map
+*.dres
+*.rsm
+*.tds
+*.dof
+*.cfg
+*.~*
+*.local
+*.identcache
+*.projdata
+*.tvsconfig
+*.dsk
+*.stat
+
+# Delphi project files
+__history/
+__recovery/
+Win32/
+Win64/
+OSX32/
+OSX64/
+Android/
+iOS/
+Linux64/
+
+# Test files
+test_*.txt
+test_*.pas
+test_*.json
+Debug-*.ps1
+Test-*.ps1
+TestParam.dpr
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+
+# IDE files
+*.dproj.local
+*.groupproj.local
+
+# DUnitX results
+dunitx-results.xml
+
+# AUGMENT directories (local only, not for Git)
+AUGMENT/
+.augment/
+
+# Build scripts (contain personal paths)
+Build-*.bat
+
+# Mercurial files (keep Mercurial separate)
+.hg/
+.hgignore
+.hgtags
+
+# Git files
+.git/
+

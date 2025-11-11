@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{5D509BB4-9423-411C-8A46-F1D47144AAF2}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="StrEditor.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Tests\Unittests.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="StrEditor">
+        <MSBuild Projects="StrEditor.dproj"/>
+    </Target>
+    <Target Name="StrEditor:Clean">
+        <MSBuild Projects="StrEditor.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="StrEditor:Make">
+        <MSBuild Projects="StrEditor.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Unittests">
+        <MSBuild Projects="Tests\Unittests.dproj"/>
+    </Target>
+    <Target Name="Unittests:Clean">
+        <MSBuild Projects="Tests\Unittests.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Unittests:Make">
+        <MSBuild Projects="Tests\Unittests.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="StrEditor;Unittests"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="StrEditor:Clean;Unittests:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="StrEditor:Make;Unittests:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
