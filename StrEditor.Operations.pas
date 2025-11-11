@@ -12,6 +12,7 @@ Uses
 , System.Math
 , System.IOUtils
 , System.NetEncoding
+, System.StrUtils
 , Winapi.Windows
 , StrEditor.Encoding
 , StrEditor.Macros
@@ -47,7 +48,7 @@ Type
       ///   Ersetzt einen String in einer Datei. Unterstützt Makros: {{LINE_NUMBER}}, {{FILE_NAME}}, {{DATE}}, {{TIME}}.
       /// </summary>
       {$ENDREGION}
-      class function StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = ''; const aVerbose : Boolean = false; const aOldStrIsBase64 : Boolean = false; const aNewStrIsBase64 : Boolean = false ) : TOperationResult;
+      class function StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = ''; const aVerbose : Boolean = false; const aOldStrIsBase64 : Boolean = false; const aNewStrIsBase64 : Boolean = false; const aMultiLine : Boolean = false; const aReplaceAll : Boolean = false ) : TOperationResult;
 
       {$REGION 'Documentation'}
       /// <summary>
@@ -80,6 +81,14 @@ Type
 
     strict private
       class function FindAndReplace( const aLines : TStringList; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer; const aVerbose : Boolean = false ) : Boolean;
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Multi-Line String Replace - Sucht und ersetzt Strings über mehrere Zeilen hinweg
+      /// </summary>
+      {$ENDREGION}
+      class function FindAndReplaceMultiLine( const aFileContent : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer; out aNewContent : string; const aReplaceAll : Boolean; const aVerbose : Boolean = false ) : Boolean;
+
       class function InsertText( const aLines : TStringList; const aText : string; const aInsertAfterLine : Integer; const aFilePath : string ) : Boolean;
       class function CreateBackup( const aFilePath : string ) : Boolean;
 
@@ -95,7 +104,7 @@ implementation
 
 { TStringOperations }
 
-class function TStringOperations.StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = ''; const aVerbose : Boolean = false; const aOldStrIsBase64 : Boolean = false; const aNewStrIsBase64 : Boolean = false ) : TOperationResult;
+class function TStringOperations.StrReplace( const aFilePath : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aCaseConversion : TCaseConversion = ccNone; const aIndentLevel : Integer = 0; const aConditionPattern : string = ''; const aVerbose : Boolean = false; const aOldStrIsBase64 : Boolean = false; const aNewStrIsBase64 : Boolean = false; const aMultiLine : Boolean = false; const aReplaceAll : Boolean = false ) : TOperationResult;
 Var
   lLines        : TStringList;
   lOriginal     : TStringList;
@@ -103,10 +112,18 @@ Var
   lLinesChanged : Integer;
   lOldStr       : string;
   lNewStr       : string;
+  lFileContent  : string;
+  lNewContent   : string;
 begin
   Result.Success      := false;
   Result.ErrorMessage := '';
   Result.LinesChanged := 0;
+
+  if aMultiLine and ( aConditionPattern <> '' ) then
+    begin
+      Result.ErrorMessage := 'ERROR: --multi-line and --condition-pattern cannot be used together';
+      Exit;
+    end;
 
   if aOldStrIsBase64 then
     begin
@@ -151,6 +168,19 @@ begin
         lOriginal.Text := lLines.Text;
       end;
 
+    if aMultiLine then
+      begin
+        lFileContent := lLines.Text;
+
+        if not FindAndReplaceMultiLine( lFileContent, lOldStr, lNewStr, aStartLine, aEndLine, aFilePath, lLinesChanged, lNewContent, aReplaceAll, aVerbose ) then
+          begin
+            Result.ErrorMessage := 'String not found: ' + lOldStr;
+            Exit;
+          end;
+
+        lLines.Text := lNewContent;
+      end
+    else
     if aConditionPattern <> '' then
       begin
         lLinesChanged := TConditionalHelper.ConditionalReplace( lLines, aConditionPattern, lOldStr, lNewStr, aStartLine, aEndLine );
@@ -336,6 +366,86 @@ begin
             WriteLn( '  -> No match' );
         end;
     end;
+end;
+
+class function TStringOperations.FindAndReplaceMultiLine( const aFileContent : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer; out aNewContent : string; const aReplaceAll : Boolean; const aVerbose : Boolean = false ) : Boolean;
+Var
+  lIndex       : Integer;
+  lStartLine   : Integer;
+  lEndLine     : Integer;
+  lLineCount   : Integer;
+  lSearchText  : string;
+  lOccurrences : Integer;
+  i            : Integer;
+begin
+  Result        := false;
+  aLinesChanged := 0;
+  aNewContent   := aFileContent;
+
+  lLineCount := 1;
+
+  for i := 1 to Length( aFileContent ) do
+    if aFileContent[ i ] = #10 then
+      Inc( lLineCount );
+
+  lStartLine := aStartLine;
+  lEndLine   := aEndLine;
+
+  if lStartLine < 1 then
+    lStartLine := 1;
+
+  if ( lEndLine < 1 ) or ( lEndLine > lLineCount ) then
+    lEndLine := lLineCount;
+
+  if aVerbose then
+    begin
+      WriteLn( 'Multi-Line Mode: ENABLED' );
+      WriteLn( 'Replace All: ', aReplaceAll );
+      WriteLn( 'Line Range: ', lStartLine, '-', lEndLine, ' (', lEndLine - lStartLine + 1, ' lines)' );
+      WriteLn;
+      WriteLn( 'Searching for multi-line string:' );
+      WriteLn( '"', aOldStr, '"' );
+      WriteLn;
+    end;
+
+  lSearchText := aFileContent;
+
+  if aReplaceAll then
+    begin
+      lOccurrences := 0;
+      lIndex := Pos( aOldStr, lSearchText );
+
+      while lIndex > 0 do
+        begin
+          Inc( lOccurrences );
+          lIndex := PosEx( aOldStr, lSearchText, lIndex + Length( aOldStr ) );
+        end;
+
+      lSearchText := StringReplace( lSearchText, aOldStr, aNewStr, [ rfReplaceAll ] );
+
+      if lSearchText <> aFileContent then
+        begin
+          aNewContent := lSearchText;
+          aLinesChanged := lOccurrences;
+          Result := true;
+
+          if aVerbose then
+            WriteLn( 'SUCCESS: ', lOccurrences, ' replacements made' );
+        end;
+    end
+  else begin
+         lSearchText := StringReplace( lSearchText, aOldStr, aNewStr, [] );
+
+         if lSearchText <> aFileContent then
+           begin
+             aNewContent := lSearchText;
+             aLinesChanged := 1;
+             Result := true;
+
+             if aVerbose then
+               WriteLn( 'SUCCESS: 1 replacement made' );
+           end;
+       end;
 end;
 
 class function TStringOperations.InsertText( const aLines : TStringList; const aText : string; const aInsertAfterLine : Integer; const aFilePath : string ) : Boolean;
@@ -671,8 +781,6 @@ class function TStringOperations.DecodeBase64( const aBase64 : string; out aDeco
 Var
   lBytes : TBytes;
 begin
-  Result := false;
-
   if aBase64 = '' then
     begin
       aDecoded := '';
@@ -680,16 +788,15 @@ begin
       Exit;
     end;
 
+  Result := false;
+
   try
     lBytes   := TNetEncoding.Base64.DecodeStringToBytes( aBase64 );
     aDecoded := TEncoding.UTF8.GetString( lBytes );
     Result   := true;
   except
     on E : Exception do
-      begin
-        aDecoded := '';
-        Result   := false;
-      end;
+      aDecoded := '';
   end;
 end;
 

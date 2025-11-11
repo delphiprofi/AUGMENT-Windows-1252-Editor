@@ -146,6 +146,30 @@ Type
 
       [Test]
       procedure TestBase64Replace_EmptyString;
+
+      [Test]
+      procedure TestMultiLine_BasicReplace;
+
+      [Test]
+      procedure TestMultiLine_ReplaceAll;
+
+      [Test]
+      procedure TestMultiLine_LineRange;
+
+      [Test]
+      procedure TestMultiLine_NotFound;
+
+      [Test]
+      procedure TestMultiLine_DryRun;
+
+      [Test]
+      procedure TestMultiLine_MultipleOccurrences;
+
+      [Test]
+      procedure TestMultiLine_FiveLinesToOne;
+
+      [Test]
+      procedure TestMultiLine_WithBackup;
   end;
 
 implementation
@@ -1043,7 +1067,6 @@ end;
 procedure TTestStringOperations.TestBase64Replace_EmptyString;
 Var
   lResult : TOperationResult;
-  lLines  : TStringList;
   lBase64 : string;
 begin
   TFile.WriteAllText( fTestFilePath, 'Test' + #13#10 + 'end.', TEncoding.GetEncoding( 1252 ) );
@@ -1054,6 +1077,244 @@ begin
 
   Assert.IsFalse( lResult.Success, 'Replace should fail with empty string' );
   Assert.IsTrue( Pos( 'String not found', lResult.ErrorMessage ) > 0, 'Error message should mention string not found' );
+end;
+
+procedure TTestStringOperations.TestMultiLine_BasicReplace;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lOldStr   : string;
+  lNewStr   : string;
+  lContent  : string;
+begin
+  lContent := 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3' + #13#10 + 'end.';
+  TFile.WriteAllText( fTestFilePath, lContent, TEncoding.GetEncoding( 1252 ) );
+
+  lOldStr := 'Line 2' + #13#10 + 'Line 3';
+  lNewStr := 'New Line';
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lOldStr, lNewStr, 1, -1, False, False, False, ccNone, 0, '', False, False, False, True, False );
+
+  Assert.IsTrue( lResult.Success, 'Multi-line replace should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should report 1 change' );
+
+  lLines := TStringList.Create;
+
+  try
+    lLines.LoadFromFile( fTestFilePath, TEncoding.GetEncoding( 1252 ) );
+    Assert.AreEqual( 3, lLines.Count, 'Should have 3 lines after replace' );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should be unchanged' );
+    Assert.AreEqual( 'New Line', lLines[ 1 ], 'Line 2 should be replaced' );
+    Assert.AreEqual( 'end.', lLines[ 2 ], 'Line 3 should be end.' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestMultiLine_ReplaceAll;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lOldStr   : string;
+  lNewStr   : string;
+  lContent  : string;
+begin
+  lContent := 'Block' + #13#10 + 'A' + #13#10 + 'Middle' + #13#10 + 'Block' + #13#10 + 'A' + #13#10 + 'end.';
+  TFile.WriteAllText( fTestFilePath, lContent, TEncoding.GetEncoding( 1252 ) );
+
+  lOldStr := 'Block' + #13#10 + 'A';
+  lNewStr := 'Replaced';
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lOldStr, lNewStr, 1, -1, False, False, False, ccNone, 0, '', False, False, False, True, True );
+
+  Assert.IsTrue( lResult.Success, 'Multi-line replace-all should succeed' );
+  Assert.AreEqual( 2, lResult.LinesChanged, 'Should report 2 changes' );
+
+  lLines := TStringList.Create;
+
+  try
+    lLines.LoadFromFile( fTestFilePath, TEncoding.GetEncoding( 1252 ) );
+    Assert.AreEqual( 4, lLines.Count, 'Should have 4 lines after replace' );
+    Assert.AreEqual( 'Replaced', lLines[ 0 ], 'First block should be replaced' );
+    Assert.AreEqual( 'Middle', lLines[ 1 ], 'Middle should be unchanged' );
+    Assert.AreEqual( 'Replaced', lLines[ 2 ], 'Second block should be replaced' );
+    Assert.AreEqual( 'end.', lLines[ 3 ], 'Last line should be end.' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestMultiLine_LineRange;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lOldStr   : string;
+  lNewStr   : string;
+  lContent  : string;
+begin
+  lContent := 'Line 1' + #13#10 + 'Block' + #13#10 + 'A' + #13#10 + 'Line 4' + #13#10 + 'Block' + #13#10 + 'A' + #13#10 + 'end.';
+  TFile.WriteAllText( fTestFilePath, lContent, TEncoding.GetEncoding( 1252 ) );
+
+  lOldStr := 'Block' + #13#10 + 'A';
+  lNewStr := 'Replaced';
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lOldStr, lNewStr, 1, 4, False, False, False, ccNone, 0, '', False, False, False, True, False );
+
+  Assert.IsTrue( lResult.Success, 'Multi-line replace with line range should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should report 1 change (only first block in range)' );
+
+  lLines := TStringList.Create;
+
+  try
+    lLines.LoadFromFile( fTestFilePath, TEncoding.GetEncoding( 1252 ) );
+    Assert.AreEqual( 6, lLines.Count, 'Should have 6 lines after replace' );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should be unchanged' );
+    Assert.AreEqual( 'Replaced', lLines[ 1 ], 'First block should be replaced' );
+    Assert.AreEqual( 'Line 4', lLines[ 2 ], 'Line 4 should be unchanged' );
+    Assert.AreEqual( 'Block', lLines[ 3 ], 'Second block should NOT be replaced (outside range)' );
+    Assert.AreEqual( 'A', lLines[ 4 ], 'Second block line 2 should be unchanged' );
+    Assert.AreEqual( 'end.', lLines[ 5 ], 'Last line should be end.' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestMultiLine_NotFound;
+Var
+  lResult   : TOperationResult;
+  lOldStr   : string;
+  lNewStr   : string;
+  lContent  : string;
+begin
+  lContent := 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'end.';
+  TFile.WriteAllText( fTestFilePath, lContent, TEncoding.GetEncoding( 1252 ) );
+
+  lOldStr := 'Not' + #13#10 + 'Found';
+  lNewStr := 'Replaced';
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lOldStr, lNewStr, 1, -1, False, False, False, ccNone, 0, '', False, False, False, True, False );
+
+  Assert.IsFalse( lResult.Success, 'Multi-line replace should fail when string not found' );
+  Assert.IsTrue( Pos( 'String not found', lResult.ErrorMessage ) > 0, 'Error message should mention string not found' );
+end;
+
+procedure TTestStringOperations.TestMultiLine_DryRun;
+Var
+  lResult       : TOperationResult;
+  lOldStr       : string;
+  lNewStr       : string;
+  lContent      : string;
+  lOriginalHash : string;
+begin
+  lContent := 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3' + #13#10 + 'end.';
+  TFile.WriteAllText( fTestFilePath, lContent, TEncoding.GetEncoding( 1252 ) );
+
+  lOriginalHash := TFile.ReadAllText( fTestFilePath, TEncoding.GetEncoding( 1252 ) );
+
+  lOldStr := 'Line 2' + #13#10 + 'Line 3';
+  lNewStr := 'New Line';
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lOldStr, lNewStr, 1, -1, True, False, False, ccNone, 0, '', False, False, False, True, False );
+
+  Assert.IsTrue( lResult.Success, 'Multi-line dry-run should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should report 1 change' );
+
+  Assert.AreEqual( lOriginalHash, TFile.ReadAllText( fTestFilePath, TEncoding.GetEncoding( 1252 ) ), 'File should not be modified in dry-run mode' );
+end;
+
+procedure TTestStringOperations.TestMultiLine_MultipleOccurrences;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lOldStr   : string;
+  lNewStr   : string;
+  lContent  : string;
+begin
+  lContent := 'Block' + #13#10 + 'A' + #13#10 + 'Middle' + #13#10 + 'Block' + #13#10 + 'A' + #13#10 + 'end.';
+  TFile.WriteAllText( fTestFilePath, lContent, TEncoding.GetEncoding( 1252 ) );
+
+  lOldStr := 'Block' + #13#10 + 'A';
+  lNewStr := 'Replaced';
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lOldStr, lNewStr, 1, -1, False, False, False, ccNone, 0, '', False, False, False, True, False );
+
+  Assert.IsTrue( lResult.Success, 'Multi-line replace should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should report 1 change (only first occurrence)' );
+
+  lLines := TStringList.Create;
+
+  try
+    lLines.LoadFromFile( fTestFilePath, TEncoding.GetEncoding( 1252 ) );
+    Assert.AreEqual( 5, lLines.Count, 'Should have 5 lines after replace' );
+    Assert.AreEqual( 'Replaced', lLines[ 0 ], 'First block should be replaced' );
+    Assert.AreEqual( 'Middle', lLines[ 1 ], 'Middle should be unchanged' );
+    Assert.AreEqual( 'Block', lLines[ 2 ], 'Second block should NOT be replaced (only first occurrence)' );
+    Assert.AreEqual( 'A', lLines[ 3 ], 'Second block line 2 should be unchanged' );
+    Assert.AreEqual( 'end.', lLines[ 4 ], 'Last line should be end.' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestMultiLine_FiveLinesToOne;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lOldStr   : string;
+  lNewStr   : string;
+  lContent  : string;
+begin
+  lContent := '      {$IFDEF PREUNICODE}' + #13#10 + '      WW := MyWideCanvasTextWidth(SortGrid1.canvas,AnsiOrUTF8((A[iii]+''..'')));' + #13#10 + '      {$ELSE}' + #13#10 + '      WW := Sortgrid1.canvas.textWidth(A[iii]+''..'' );' + #13#10 + '      {$ENDIF}' + #13#10 + 'end.';
+  TFile.WriteAllText( fTestFilePath, lContent, TEncoding.GetEncoding( 1252 ) );
+
+  lOldStr := '      {$IFDEF PREUNICODE}' + #13#10 + '      WW := MyWideCanvasTextWidth(SortGrid1.canvas,AnsiOrUTF8((A[iii]+''..'')));' + #13#10 + '      {$ELSE}' + #13#10 + '      WW := Sortgrid1.canvas.textWidth(A[iii]+''..'' );' + #13#10 + '      {$ENDIF}';
+  lNewStr := '      WW := MyWideCanvasTextWidth(SortGrid1.canvas,AnsiOrUTF8((A[iii]+''..'')));';
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lOldStr, lNewStr, 1, -1, False, False, False, ccNone, 0, '', False, False, False, True, False );
+
+  Assert.IsTrue( lResult.Success, 'Multi-line replace (5 lines to 1) should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should report 1 change' );
+
+  lLines := TStringList.Create;
+
+  try
+    lLines.LoadFromFile( fTestFilePath, TEncoding.GetEncoding( 1252 ) );
+    Assert.AreEqual( 2, lLines.Count, 'Should have 2 lines after replace (1 + end.)' );
+    Assert.AreEqual( '      WW := MyWideCanvasTextWidth(SortGrid1.canvas,AnsiOrUTF8((A[iii]+''..'')));', lLines[ 0 ], 'Line should be replaced' );
+    Assert.AreEqual( 'end.', lLines[ 1 ], 'Last line should be end.' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestMultiLine_WithBackup;
+Var
+  lResult     : TOperationResult;
+  lOldStr     : string;
+  lNewStr     : string;
+  lContent    : string;
+  lBackupPath : string;
+begin
+  lContent := 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3' + #13#10 + 'end.';
+  TFile.WriteAllText( fTestFilePath, lContent, TEncoding.GetEncoding( 1252 ) );
+
+  lOldStr := 'Line 2' + #13#10 + 'Line 3';
+  lNewStr := 'New Line';
+
+  lBackupPath := fTestFilePath + '.bak';
+
+  if TFile.Exists( lBackupPath ) then
+    TFile.Delete( lBackupPath );
+
+  lResult := TStringOperations.StrReplace( fTestFilePath, lOldStr, lNewStr, 1, -1, False, True, False, ccNone, 0, '', False, False, False, True, False );
+
+  Assert.IsTrue( lResult.Success, 'Multi-line replace with backup should succeed' );
+  Assert.IsTrue( TFile.Exists( lBackupPath ), 'Backup file should be created' );
+
+  Assert.AreEqual( lContent, TFile.ReadAllText( lBackupPath, TEncoding.GetEncoding( 1252 ) ), 'Backup should contain original content' );
+
+  if TFile.Exists( lBackupPath ) then
+    TFile.Delete( lBackupPath );
 end;
 
 end.

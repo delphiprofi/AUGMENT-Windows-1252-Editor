@@ -62,6 +62,7 @@ Type
     ConditionPattern  : string;
     CaseInsensitive   : Boolean;
     MultiLine         : Boolean;
+    ReplaceAll        : Boolean;
     Backup            : Boolean;
     DryRun            : Boolean;
     Diff              : Boolean;
@@ -401,12 +402,14 @@ begin
         end;
     end;
 
-  aParams.JSONFile := GetParamValue( '--json' );
-  aParams.Backup   := HasParam( '--backup' );
-  aParams.DryRun   := HasParam( '--dry-run' );
-  aParams.Diff     := HasParam( '--diff' );
-  aParams.Stats    := HasParam( '--stats' );
-  aParams.Verbose  := HasParam( '--verbose' );
+  aParams.JSONFile   := GetParamValue( '--json' );
+  aParams.Backup     := HasParam( '--backup' );
+  aParams.DryRun     := HasParam( '--dry-run' );
+  aParams.Diff       := HasParam( '--diff' );
+  aParams.Stats      := HasParam( '--stats' );
+  aParams.Verbose    := HasParam( '--verbose' );
+  aParams.MultiLine  := HasParam( '--multi-line' );
+  aParams.ReplaceAll := HasParam( '--replace-all' );
 
   Var lCase := GetParamValue( '--case' );
 
@@ -514,6 +517,8 @@ begin
   WriteLn( '  --condition-pattern <pat>  Only replace if line matches this regex pattern' );
   WriteLn( '  -i, --case-insensitive     Case-insensitive regex matching' );
   WriteLn( '  -m, --multiline            Multi-line regex matching' );
+  WriteLn( '  --multi-line               Multi-line string replace (search across line boundaries)' );
+  WriteLn( '  --replace-all              Replace all occurrences (default: only first)' );
   WriteLn( '  --backup                   Create backup file before changes' );
   WriteLn( '  --dry-run                  Show changes without modifying file' );
   WriteLn( '  --diff                     Show differences between original and modified' );
@@ -550,19 +555,30 @@ begin
   WriteLn( '  StrEditor.exe --file "test.pas" --show --head 10 --line-numbers' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --tail 5' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --start-line 10 --end-line 20' );
+  WriteLn;
+  WriteLn( 'Multi-Line Examples:' );
+  WriteLn( '  # Replace 5 lines with 1 line (IFDEF block removal)' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --old-str-base64 "BASE64_5_LINES" --new-str-base64 "BASE64_1_LINE" --multi-line --backup' );
+  WriteLn;
+  WriteLn( '  # Replace all occurrences of multi-line block' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --old-str-base64 "BASE64_BLOCK" --new-str-base64 "BASE64_NEW" --multi-line --replace-all' );
 end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.5.0' );
+  WriteLn( 'StrEditor v1.6.0' );
   WriteLn( 'Build: 2025-11-11' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
-  WriteLn( 'New in v1.5:' );
-  WriteLn( '  - Base64-encoded parameters (--old-str-base64, --new-str-base64, --text-base64)' );
-  WriteLn( '  - Fixes PowerShell special character issues (Dollar-Zeichen, Backtick, etc.)' );
+  WriteLn( 'New in v1.6:' );
+  WriteLn( '  - Multi-Line String Replace (--multi-line)' );
+  WriteLn( '  - Replace all occurrences (--replace-all)' );
+  WriteLn( '  - Search and replace across line boundaries' );
   WriteLn;
   WriteLn( 'Previous versions:' );
+  WriteLn( '  v1.5: Base64-encoded parameters (--old-str-base64, --new-str-base64, --text-base64)' );
+  WriteLn( '  - Fixes PowerShell special character issues (Dollar-Zeichen, Backtick, etc.)' );
+  WriteLn;
   WriteLn( '  v1.4: Reinterpret Encoding (--reinterpret-as <utf8|windows1252>)' );
   WriteLn( '  - Repairs broken encodings (e.g., UTF-8 bytes in Windows-1252 files)' );
   WriteLn;

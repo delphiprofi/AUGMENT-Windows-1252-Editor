@@ -182,7 +182,7 @@ begin
               else WriteLn( 'Replacing "' + aParams.OldStr + '" with "' + aParams.NewStr + '" in ' + aParams.FilePath );
           end;
 
-        lResult := TStringOperations.StrReplace( aParams.FilePath, aParams.OldStr, aParams.NewStr, aParams.StartLine, aParams.EndLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.CaseConversion, aParams.IndentLevel, aParams.ConditionPattern, aParams.Verbose, aParams.OldStrIsBase64, aParams.NewStrIsBase64 );
+        lResult := TStringOperations.StrReplace( aParams.FilePath, aParams.OldStr, aParams.NewStr, aParams.StartLine, aParams.EndLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.CaseConversion, aParams.IndentLevel, aParams.ConditionPattern, aParams.Verbose, aParams.OldStrIsBase64, aParams.NewStrIsBase64, aParams.MultiLine, aParams.ReplaceAll );
 
         if lResult.Success then
           begin
