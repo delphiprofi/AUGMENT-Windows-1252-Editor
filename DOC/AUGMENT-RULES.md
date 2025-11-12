@@ -1,6 +1,6 @@
 # StrEditor - Augment Agent Integration Rules
 
-**Version:** 1.6.0  
+**Version:** 1.7.1
 **Last Updated:** 2025-11-11
 
 ---
@@ -25,6 +25,18 @@ StrEditor.exe --file "path\to\file.pas" --text "// Comment" --insert-after-line 
 
 # Multi-line string replace (v1.6)
 StrEditor.exe --file "path\to\file.pas" --old-str "begin\n  WriteLn('Hello');\nend" --new-str "start\n  Print('Hi');\nstop" --multi-line
+
+# Delete a single line (v1.7)
+StrEditor.exe --file "path\to\file.pas" --delete-line 25 --backup
+
+# Delete multiple lines (v1.7)
+StrEditor.exe --file "path\to\file.pas" --delete-lines "1,3,5,7" --backup
+
+# Replace a complete line (v1.7)
+StrEditor.exe --file "path\to\file.pas" --replace-line 25 --with "  WriteLn('New');" --backup
+
+# JSON Config with multiple operations (v1.7.1)
+StrEditor.exe --config "operations.json" --verbose
 ```
 
 ---
@@ -46,6 +58,15 @@ StrEditor.exe --file "path\to\file.pas" --old-str "begin\n  WriteLn('Hello');\ne
 ### 4. Multi-Line Replacements
 - Use `--multi-line` flag for strings spanning multiple lines (v1.6)
 - Use `\n` to represent line breaks in `--old-str` and `--new-str`
+
+### 4a. Line Manipulation (v1.7) - RECOMMENDED
+- **PREFER** line manipulation over string replacement when possible
+- Use `--delete-line <n>` to delete a single line
+- Use `--delete-lines <n,m,k>` to delete multiple lines (comma-separated)
+- Use `--delete-lines --start-line <n> --end-line <m>` to delete a line range
+- Use `--replace-line <n> --with <text>` to replace a complete line
+- Use `--with-base64` for special characters in replace-line
+- **ADVANTAGES**: Simpler, faster, more precise than string replacement
 
 ### 5. Line Range
 - Use `--start-line` and `--end-line` to limit replacements to specific lines
@@ -75,6 +96,14 @@ StrEditor.exe --file "path\to\file.pas" --old-str "begin\n  WriteLn('Hello');\ne
 ### 11. Verbose Output
 - Use `--verbose` to see detailed output for debugging
 - Verbose output shows encoding detection, line numbers, and replacement details
+
+### 12. JSON Config & Batch Mode (v1.7.1)
+- Use JSON config files to load multiple line operations
+- **Automatic Batch Mode**: Multiple line operations are automatically sorted and executed in optimal order
+- **Sorting**: Operations are executed from highest to lowest line number
+- **Advantage**: Prevents index shifting issues when deleting/modifying multiple lines
+- **Supported Commands**: `delete-line`, `delete-lines`, `replace-line`
+- **Example**: See [DOC/INTEGRATION.md](INTEGRATION.md) for JSON config examples
 
 ---
 
@@ -131,6 +160,37 @@ StrEditor.exe --file "MyUnit.pas" --regex-pattern "f(\w+)" --regex-replace 'l$1'
 ```bash
 StrEditor.exe --file "MyUnit.pas" --old-str "nil" --new-str "NIL" --dry-run --verbose
 ```
+
+### Example 8: JSON Config with Multiple Line Operations (v1.7.1)
+```json
+{
+  "operations": [
+    {
+      "command": "delete-line",
+      "file": "MyUnit.pas",
+      "line": 10
+    },
+    {
+      "command": "replace-line",
+      "file": "MyUnit.pas",
+      "line": 25,
+      "text": "  WriteLn('New Line');"
+    },
+    {
+      "command": "delete-lines",
+      "file": "MyUnit.pas",
+      "lines": "5,15,20"
+    }
+  ]
+}
+```
+
+Execute:
+```bash
+StrEditor.exe --config "operations.json" --verbose
+```
+
+**Note**: Operations are automatically sorted and executed from highest to lowest line number!
 
 ---
 

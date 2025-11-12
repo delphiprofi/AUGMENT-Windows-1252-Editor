@@ -17,7 +17,7 @@ Type
   ///   Command-Typ
   /// </summary>
   {$ENDREGION}
-  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding );
+  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine );
 
   {$REGION 'Documentation'}
   /// <summary>
@@ -37,7 +37,8 @@ Type
     ecStringNotFound  = 2,
     ecEncodingError   = 3,
     ecParameterError  = 4,
-    ecJSONParseError  = 5
+    ecJSONParseError  = 5,
+    ecOperationFailed = 6
   );
 
   {$REGION 'Documentation'}
@@ -80,6 +81,8 @@ Type
     NewStrIsBase64    : Boolean;
     TextIsBase64      : Boolean;
     RegexIsBase64     : Boolean;
+    LineNumber        : Integer;
+    LineNumbers       : string;
   end;
 
   {$REGION 'Documentation'}
@@ -152,6 +155,8 @@ begin
   aParams.ShowTail        := 0;
   aParams.ShowRaw         := false;
   aParams.ShowLineNumbers := false;
+  aParams.LineNumber      := 0;
+  aParams.LineNumbers     := '';
 
   if HasParam( '--help' ) or HasParam( '-h' ) then
     begin
@@ -271,6 +276,101 @@ begin
 
   if aParams.ConfigFile <> '' then
     begin
+      Result := true;
+      Exit;
+    end;
+
+  if HasParam( '--delete-line' ) then
+    begin
+      aParams.Command    := ctDeleteLine;
+      aParams.FilePath   := GetParamValue( '--file' );
+      aParams.LineNumber := StrToIntDef( GetParamValue( '--delete-line' ), 0 );
+      aParams.Backup     := HasParam( '--backup' );
+      aParams.DryRun     := HasParam( '--dry-run' );
+      aParams.Diff       := HasParam( '--diff' );
+      aParams.Verbose    := HasParam( '--verbose' );
+
+      if aParams.FilePath = '' then
+        begin
+          ShowError( 'Missing required parameter: --file' );
+          Exit;
+        end;
+
+      if aParams.LineNumber <= 0 then
+        begin
+          ShowError( 'Invalid line number: ' + GetParamValue( '--delete-line' ) );
+          Exit;
+        end;
+
+      Result := true;
+      Exit;
+    end;
+
+  if HasParam( '--delete-lines' ) then
+    begin
+      aParams.Command    := ctDeleteLines;
+      aParams.FilePath   := GetParamValue( '--file' );
+      aParams.LineNumbers := GetParamValue( '--delete-lines' );
+      aParams.Backup     := HasParam( '--backup' );
+      aParams.DryRun     := HasParam( '--dry-run' );
+      aParams.Diff       := HasParam( '--diff' );
+      aParams.Verbose    := HasParam( '--verbose' );
+
+      if HasParam( '--start-line' ) then
+        aParams.StartLine := StrToIntDef( GetParamValue( '--start-line' ), 0 );
+
+      if HasParam( '--end-line' ) then
+        aParams.EndLine := StrToIntDef( GetParamValue( '--end-line' ), 0 );
+
+      if aParams.FilePath = '' then
+        begin
+          ShowError( 'Missing required parameter: --file' );
+          Exit;
+        end;
+
+      if ( aParams.LineNumbers = '' ) and ( aParams.StartLine = 0 ) then
+        begin
+          ShowError( 'Missing required parameter: --delete-lines or --start-line' );
+          Exit;
+        end;
+
+      Result := true;
+      Exit;
+    end;
+
+  if HasParam( '--replace-line' ) then
+    begin
+      aParams.Command      := ctReplaceLine;
+      aParams.FilePath     := GetParamValue( '--file' );
+      aParams.LineNumber   := StrToIntDef( GetParamValue( '--replace-line' ), 0 );
+      aParams.TextIsBase64 := HasParam( '--with-base64' );
+      aParams.Backup       := HasParam( '--backup' );
+      aParams.DryRun       := HasParam( '--dry-run' );
+      aParams.Diff         := HasParam( '--diff' );
+      aParams.Verbose      := HasParam( '--verbose' );
+
+      if aParams.TextIsBase64
+        then aParams.Text := GetParamValue( '--with-base64' )
+        else aParams.Text := GetParamValue( '--with' );
+
+      if aParams.FilePath = '' then
+        begin
+          ShowError( 'Missing required parameter: --file' );
+          Exit;
+        end;
+
+      if aParams.LineNumber <= 0 then
+        begin
+          ShowError( 'Invalid line number: ' + GetParamValue( '--replace-line' ) );
+          Exit;
+        end;
+
+      if aParams.Text = '' then
+        begin
+          ShowError( 'Missing required parameter: --with or --with-base64' );
+          Exit;
+        end;
+
       Result := true;
       Exit;
     end;
@@ -492,6 +592,11 @@ begin
   WriteLn( '  StrEditor.exe --file <file> --text <text> --insert-after-line <n>' );
   WriteLn( '  StrEditor.exe --file <file> --regex-pattern <pattern> --regex-replace <replacement> [-i] [-m]' );
   WriteLn( '  StrEditor.exe --file <file> --regex-pattern <pattern> --regex-test [-i] [-m]' );
+  WriteLn( '  StrEditor.exe --file <file> --delete-line <n> [--backup] [--dry-run] [--diff]' );
+  WriteLn( '  StrEditor.exe --file <file> --delete-lines <n,m,k> [--backup] [--dry-run] [--diff]' );
+  WriteLn( '  StrEditor.exe --file <file> --delete-lines --start-line <n> --end-line <m> [--backup] [--dry-run]' );
+  WriteLn( '  StrEditor.exe --file <file> --replace-line <n> --with <text> [--backup] [--dry-run] [--diff]' );
+  WriteLn( '  StrEditor.exe --file <file> --replace-line <n> --with-base64 <base64> [--backup] [--dry-run]' );
   WriteLn( '  StrEditor.exe --file <file> --detect-encoding' );
   WriteLn( '  StrEditor.exe --file <file> --convert-encoding --to <utf8|windows1252> [--backup] [--dry-run]' );
   WriteLn( '  StrEditor.exe --file <file> --reinterpret-as <utf8|windows1252> [--backup] [--dry-run]' );
@@ -525,6 +630,12 @@ begin
   WriteLn( '  --stats                    Show statistics after operation' );
   WriteLn( '  --case <type>              Case conversion: upper, lower, title' );
   WriteLn( '  --indent <n>               Indent (+n) or outdent (-n) lines' );
+  WriteLn( '  --delete-line <n>          Delete a single line' );
+  WriteLn( '  --delete-lines <n,m,k>     Delete multiple lines (comma-separated)' );
+  WriteLn( '  --delete-lines --start-line <n> --end-line <m>  Delete line range' );
+  WriteLn( '  --replace-line <n>         Replace a complete line' );
+  WriteLn( '  --with <text>              Replacement text for --replace-line' );
+  WriteLn( '  --with-base64 <base64>     Replacement text (Base64-encoded)' );
   WriteLn( '  --undo                     Restore backup file (requires --file)' );
   WriteLn( '  --config <file>            Load parameters from JSON config file' );
   WriteLn( '  --detect-encoding          Detect and show file encoding (requires --file)' );
@@ -555,6 +666,11 @@ begin
   WriteLn( '  StrEditor.exe --file "test.pas" --show --head 10 --line-numbers' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --tail 5' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --start-line 10 --end-line 20' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --delete-line 25 --backup' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --delete-lines "1,3,5" --backup' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --delete-lines --start-line 10 --end-line 20 --backup' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --replace-line 25 --with "  WriteLn(''New'');" --backup' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --replace-line 25 --with-base64 "ICBXcml0ZUxuKCdOZXcnKTs=" --backup' );
   WriteLn;
   WriteLn( 'Multi-Line Examples:' );
   WriteLn( '  # Replace 5 lines with 1 line (IFDEF block removal)' );
@@ -566,9 +682,15 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.6.0' );
+  WriteLn( 'StrEditor v1.7.1' );
   WriteLn( 'Build: 2025-11-11' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
+  WriteLn;
+  WriteLn( 'New in v1.7:' );
+  WriteLn( '  - Delete Line (--delete-line <n>)' );
+  WriteLn( '  - Delete Lines (--delete-lines <n,m,k> or --start-line/--end-line)' );
+  WriteLn( '  - Replace Line (--replace-line <n> --with <text>)' );
+  WriteLn( '  - Base64 support for replace-line (--with-base64)' );
   WriteLn;
   WriteLn( 'New in v1.6:' );
   WriteLn( '  - Multi-Line String Replace (--multi-line)' );

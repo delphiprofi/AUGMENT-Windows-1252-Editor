@@ -17,6 +17,7 @@ Uses
 , TestStrEditor.Operations
 , TestStrEditor.Regex
 , TestStrEditor.Macros
+, TestStrEditor.Config
 ;
 
 { keep comment here to protect the following conditional from being removed by the IDE when adding a unit }

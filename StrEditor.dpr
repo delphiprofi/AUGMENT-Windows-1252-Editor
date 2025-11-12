@@ -14,6 +14,7 @@ Uses
 , StrEditor.Batch
 , StrEditor.Undo
 , StrEditor.Config
+, StrEditor.BatchProcessor
 ;
 
 procedure ProcessSingleFile( const aParams : TCommandLineParams );
@@ -330,6 +331,97 @@ begin
              end;
       end;
 
+    ctDeleteLine:
+      begin
+        if aParams.Verbose then
+          begin
+            if aParams.DryRun
+              then WriteLn( '[DRY-RUN] Deleting line ' + IntToStr( aParams.LineNumber ) + ' in ' + aParams.FilePath )
+              else WriteLn( 'Deleting line ' + IntToStr( aParams.LineNumber ) + ' in ' + aParams.FilePath );
+          end;
+
+        lResult := TStringOperations.DeleteLine( aParams.FilePath, aParams.LineNumber, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.Verbose );
+
+        if lResult.Success then
+          begin
+            if not aParams.DryRun then
+              WriteLn( 'SUCCESS: Deleted line ' + IntToStr( aParams.LineNumber ) );
+
+            ExitCode := Ord( ecSuccess );
+          end
+        else begin
+               WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+
+               if Pos( 'File not found', lResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecFileNotFound )
+                 else ExitCode := Ord( ecEncodingError );
+             end;
+      end;
+
+    ctDeleteLines:
+      begin
+        if aParams.Verbose then
+          begin
+            if aParams.LineNumbers <> ''
+              then begin
+                     if aParams.DryRun
+                       then WriteLn( '[DRY-RUN] Deleting lines ' + aParams.LineNumbers + ' in ' + aParams.FilePath )
+                       else WriteLn( 'Deleting lines ' + aParams.LineNumbers + ' in ' + aParams.FilePath );
+                   end
+              else begin
+                     if aParams.DryRun
+                       then WriteLn( '[DRY-RUN] Deleting lines ' + IntToStr( aParams.StartLine ) + '-' + IntToStr( aParams.EndLine ) + ' in ' + aParams.FilePath )
+                       else WriteLn( 'Deleting lines ' + IntToStr( aParams.StartLine ) + '-' + IntToStr( aParams.EndLine ) + ' in ' + aParams.FilePath );
+                   end;
+          end;
+
+        if aParams.LineNumbers <> ''
+          then lResult := TStringOperations.DeleteLines( aParams.FilePath, aParams.LineNumbers, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.Verbose )
+          else lResult := TStringOperations.DeleteLines( aParams.FilePath, aParams.StartLine, aParams.EndLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.Verbose );
+
+        if lResult.Success then
+          begin
+            if not aParams.DryRun then
+              WriteLn( 'SUCCESS: Deleted ' + IntToStr( lResult.LinesChanged ) + ' line(s)' );
+
+            ExitCode := Ord( ecSuccess );
+          end
+        else begin
+               WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+
+               if Pos( 'File not found', lResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecFileNotFound )
+                 else ExitCode := Ord( ecEncodingError );
+             end;
+      end;
+
+    ctReplaceLine:
+      begin
+        if aParams.Verbose then
+          begin
+            if aParams.DryRun
+              then WriteLn( '[DRY-RUN] Replacing line ' + IntToStr( aParams.LineNumber ) + ' in ' + aParams.FilePath )
+              else WriteLn( 'Replacing line ' + IntToStr( aParams.LineNumber ) + ' in ' + aParams.FilePath );
+          end;
+
+        lResult := TStringOperations.ReplaceLine( aParams.FilePath, aParams.LineNumber, aParams.Text, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.Verbose, aParams.TextIsBase64 );
+
+        if lResult.Success then
+          begin
+            if not aParams.DryRun then
+              WriteLn( 'SUCCESS: Replaced line ' + IntToStr( aParams.LineNumber ) );
+
+            ExitCode := Ord( ecSuccess );
+          end
+        else begin
+               WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+
+               if Pos( 'File not found', lResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecFileNotFound )
+                 else ExitCode := Ord( ecEncodingError );
+             end;
+      end;
+
     else begin
            TCommandLineParser.ShowError( 'Unknown command' );
            ExitCode := Ord( ecParameterError );
@@ -338,11 +430,7 @@ begin
 end;
 
 Var
-  lParams      : TCommandLineParams;
-  lFiles       : TArray<string>;
-  lFile        : string;
-  lTotalFiles  : Integer;
-  lSuccessful  : Integer;
+  lParams : TCommandLineParams;
 
 begin
   try
@@ -368,13 +456,44 @@ begin
 
             WriteLn( 'Config loaded successfully - ' + IntToStr( Length( lOperations ) ) + ' operation(s)' );
 
-            for Var lOp in lOperations do
+            if TBatchProcessor.HasLineOperations( lOperations ) then
               begin
-                if lOp.Verbose then
-                  WriteLn( 'Executing operation: ' + lOp.FilePath );
+                Var lFilePath := '';
 
-                ProcessSingleFile( lOp );
-              end;
+                for Var lOp in lOperations do
+                  begin
+                    if lOp.FilePath <> '' then
+                      begin
+                        lFilePath := lOp.FilePath;
+                        Break;
+                      end;
+                  end;
+
+                if lFilePath = '' then
+                  begin
+                    WriteLn( 'ERROR: No file path specified in operations' );
+                    ExitCode := Ord( ecParameterError );
+                    Exit;
+                  end;
+
+                if lParams.Verbose then
+                  WriteLn( 'Processing line operations in batch mode (sorted by line number)' );
+
+                if not TBatchProcessor.ProcessLineOperations( lFilePath, lOperations ) then
+                  begin
+                    ExitCode := Ord( ecOperationFailed );
+                    Exit;
+                  end;
+              end
+            else begin
+                   for Var lOp in lOperations do
+                     begin
+                       if lOp.Verbose then
+                         WriteLn( 'Executing operation: ' + lOp.FilePath );
+
+                       ProcessSingleFile( lOp );
+                     end;
+                 end;
 
             Exit;
           end
@@ -401,46 +520,7 @@ begin
         Exit;
       end;
 
-    if lParams.FilePattern <> '' then
-      begin
-        lFiles := TBatchProcessor.FindFiles( lParams.FilePattern );
-
-        if Length( lFiles ) = 0 then
-          begin
-            WriteLn( 'ERROR: No files found matching pattern: ' + lParams.FilePattern );
-            ExitCode := Ord( ecFileNotFound );
-            Exit;
-          end;
-
-        lTotalFiles := Length( lFiles );
-        lSuccessful := 0;
-
-        if lParams.Verbose then
-          WriteLn( 'Processing ' + IntToStr( lTotalFiles ) + ' file(s)...' );
-
-        for lFile in lFiles do
-          begin
-            lParams.FilePath := lFile;
-
-            if lParams.Verbose then
-              WriteLn( '--- Processing: ' + lFile );
-
-            ProcessSingleFile( lParams );
-
-            if ExitCode = Ord( ecSuccess ) then
-              Inc( lSuccessful );
-          end;
-
-        if lParams.Verbose then
-          WriteLn( 'Batch processing complete: ' + IntToStr( lSuccessful ) + '/' + IntToStr( lTotalFiles ) + ' file(s) processed successfully' );
-
-        if lSuccessful = lTotalFiles
-          then ExitCode := Ord( ecSuccess )
-          else ExitCode := Ord( ecEncodingError );
-      end
-    else begin
-           ProcessSingleFile( lParams );
-         end;
+    ProcessSingleFile( lParams );
   except
     on E : Exception do
       begin

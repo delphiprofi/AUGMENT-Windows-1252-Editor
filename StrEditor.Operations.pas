@@ -13,6 +13,7 @@ Uses
 , System.IOUtils
 , System.NetEncoding
 , System.StrUtils
+, System.Generics.Collections
 , Winapi.Windows
 , StrEditor.Encoding
 , StrEditor.Macros
@@ -78,6 +79,30 @@ Type
       /// </summary>
       {$ENDREGION}
       class function ReinterpretEncoding( const aFilePath : string; const aSourceEncoding : string; const aBackup : Boolean; const aDryRun : Boolean; const aVerbose : Boolean ) : TOperationResult;
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Löscht eine einzelne Zeile aus einer Datei
+      /// </summary>
+      {$ENDREGION}
+      class function DeleteLine( const aFilePath : string; const aLineNumber : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Löscht einen Zeilenbereich oder mehrere einzelne Zeilen aus einer Datei
+      ///   aStartLine/aEndLine: Zeilenbereich (z.B. 10-20)
+      ///   aLineNumbers: Komma-separierte Liste (z.B. "1,3,5")
+      /// </summary>
+      {$ENDREGION}
+      class function DeleteLines( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult; overload;
+      class function DeleteLines( const aFilePath : string; const aLineNumbers : string; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult; overload;
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Ersetzt eine komplette Zeile durch neuen Text
+      /// </summary>
+      {$ENDREGION}
+      class function ReplaceLine( const aFilePath : string; const aLineNumber : Integer; const aNewText : string; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false; const aTextIsBase64 : Boolean = false ) : TOperationResult;
 
     strict private
       class function FindAndReplace( const aLines : TStringList; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer; const aVerbose : Boolean = false ) : Boolean;
@@ -797,6 +822,354 @@ begin
   except
     on E : Exception do
       aDecoded := '';
+  end;
+end;
+
+class function TStringOperations.DeleteLine( const aFilePath : string; const aLineNumber : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+Var
+  lLines    : TStringList;
+  lOriginal : TStringList;
+  lEncoding : TEncodingType;
+begin
+  Result.Success      := false;
+  Result.ErrorMessage := '';
+  Result.LinesChanged := 0;
+
+  if not FileExists( aFilePath ) then
+    begin
+      Result.ErrorMessage := 'File not found: ' + aFilePath;
+      Exit;
+    end;
+
+  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+    begin
+      Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
+      Exit;
+    end;
+
+  try
+    if ( aLineNumber < 1 ) or ( aLineNumber > lLines.Count ) then
+      begin
+        Result.ErrorMessage := 'Invalid line number: ' + IntToStr( aLineNumber ) + ' (file has ' + IntToStr( lLines.Count ) + ' lines)';
+        Exit;
+      end;
+
+    if aDiff then
+      begin
+        lOriginal := TStringList.Create;
+        lOriginal.Text := lLines.Text;
+      end
+      else lOriginal := NIL;
+
+    lLines.Delete( aLineNumber - 1 );
+    Result.LinesChanged := 1;
+
+    if aDiff then
+      begin
+        TDiffHelper.ShowDiff( lOriginal, lLines, aFilePath );
+        lOriginal.Free;
+      end;
+
+    if aDryRun then
+      begin
+        if aVerbose then
+          WriteLn( 'DRY-RUN: Would delete line ', aLineNumber );
+
+        Result.Success := true;
+        Exit;
+      end;
+
+    if aBackup then
+      if not CreateBackup( aFilePath ) then
+        begin
+          Result.ErrorMessage := 'Failed to create backup';
+          Exit;
+        end;
+
+    if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+      begin
+        Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
+        Exit;
+      end;
+
+    if aVerbose then
+      WriteLn( 'SUCCESS: Deleted line ', aLineNumber );
+
+    Result.Success := true;
+  finally
+    lLines.Free;
+  end;
+end;
+
+class function TStringOperations.DeleteLines( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+Var
+  lLines    : TStringList;
+  lOriginal : TStringList;
+  lEncoding : TEncodingType;
+  i         : Integer;
+begin
+  Result.Success      := false;
+  Result.ErrorMessage := '';
+  Result.LinesChanged := 0;
+
+  if not FileExists( aFilePath ) then
+    begin
+      Result.ErrorMessage := 'File not found: ' + aFilePath;
+      Exit;
+    end;
+
+  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+    begin
+      Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
+      Exit;
+    end;
+
+  try
+    if ( aStartLine < 1 ) or ( aStartLine > lLines.Count ) then
+      begin
+        Result.ErrorMessage := 'Invalid line number: ' + IntToStr( aStartLine ) + ' (file has ' + IntToStr( lLines.Count ) + ' lines)';
+        Exit;
+      end;
+
+    if ( aEndLine < aStartLine ) or ( aEndLine > lLines.Count ) then
+      begin
+        Result.ErrorMessage := 'Invalid line number: ' + IntToStr( aEndLine ) + ' (file has ' + IntToStr( lLines.Count ) + ' lines)';
+        Exit;
+      end;
+
+    if aDiff then
+      begin
+        lOriginal := TStringList.Create;
+        lOriginal.Text := lLines.Text;
+      end
+      else lOriginal := NIL;
+
+    for i := aEndLine - 1 downto aStartLine - 1 do
+      lLines.Delete( i );
+
+    Result.LinesChanged := aEndLine - aStartLine + 1;
+
+    if aDiff then
+      begin
+        TDiffHelper.ShowDiff( lOriginal, lLines, aFilePath );
+        lOriginal.Free;
+      end;
+
+    if aDryRun then
+      begin
+        if aVerbose then
+          WriteLn( 'DRY-RUN: Would delete lines ', aStartLine, '-', aEndLine );
+
+        Result.Success := true;
+        Exit;
+      end;
+
+    if aBackup then
+      if not CreateBackup( aFilePath ) then
+        begin
+          Result.ErrorMessage := 'Failed to create backup';
+          Exit;
+        end;
+
+    if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+      begin
+        Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
+        Exit;
+      end;
+
+    if aVerbose then
+      WriteLn( 'SUCCESS: Deleted lines ', aStartLine, '-', aEndLine );
+
+    Result.Success := true;
+  finally
+    lLines.Free;
+  end;
+end;
+
+class function TStringOperations.DeleteLines( const aFilePath : string; const aLineNumbers : string; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+Var
+  lLines       : TStringList;
+  lOriginal    : TStringList;
+  lEncoding    : TEncodingType;
+  lLineNumbers : TArray<Integer>;
+  lParts       : TArray<string>;
+  i            : Integer;
+  lLineNum     : Integer;
+begin
+  Result.Success      := false;
+  Result.ErrorMessage := '';
+  Result.LinesChanged := 0;
+
+  if not FileExists( aFilePath ) then
+    begin
+      Result.ErrorMessage := 'File not found: ' + aFilePath;
+      Exit;
+    end;
+
+  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+    begin
+      Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
+      Exit;
+    end;
+
+  try
+    lParts := aLineNumbers.Split( [ ',' ] );
+    SetLength( lLineNumbers, Length( lParts ) );
+
+    for i := 0 to High( lParts ) do
+      begin
+        if not TryStrToInt( Trim( lParts[ i ] ), lLineNum ) then
+          begin
+            Result.ErrorMessage := 'Invalid line number: ' + lParts[ i ];
+            Exit;
+          end;
+
+        if ( lLineNum < 1 ) or ( lLineNum > lLines.Count ) then
+          begin
+            Result.ErrorMessage := 'Invalid line number: ' + IntToStr( lLineNum ) + ' (file has ' + IntToStr( lLines.Count ) + ' lines)';
+            Exit;
+          end;
+
+        lLineNumbers[ i ] := lLineNum;
+      end;
+
+    TArray.Sort<Integer>( lLineNumbers );
+
+    if aDiff then
+      begin
+        lOriginal := TStringList.Create;
+        lOriginal.Text := lLines.Text;
+      end
+      else lOriginal := NIL;
+
+    for i := High( lLineNumbers ) downto 0 do
+      lLines.Delete( lLineNumbers[ i ] - 1 );
+
+    Result.LinesChanged := Length( lLineNumbers );
+
+    if aDiff then
+      begin
+        TDiffHelper.ShowDiff( lOriginal, lLines, aFilePath );
+        lOriginal.Free;
+      end;
+
+    if aDryRun then
+      begin
+        if aVerbose then
+          WriteLn( 'DRY-RUN: Would delete lines ', aLineNumbers );
+
+        Result.Success := true;
+        Exit;
+      end;
+
+    if aBackup then
+      if not CreateBackup( aFilePath ) then
+        begin
+          Result.ErrorMessage := 'Failed to create backup';
+          Exit;
+        end;
+
+    if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+      begin
+        Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
+        Exit;
+      end;
+
+    if aVerbose then
+      WriteLn( 'SUCCESS: Deleted ', Length( lLineNumbers ), ' lines' );
+
+    Result.Success := true;
+  finally
+    lLines.Free;
+  end;
+end;
+
+class function TStringOperations.ReplaceLine( const aFilePath : string; const aLineNumber : Integer; const aNewText : string; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false; const aTextIsBase64 : Boolean = false ) : TOperationResult;
+Var
+  lLines         : TStringList;
+  lOriginal      : TStringList;
+  lEncoding      : TEncodingType;
+  lText          : string;
+  lExpandedText  : string;
+begin
+  Result.Success      := false;
+  Result.ErrorMessage := '';
+  Result.LinesChanged := 0;
+
+  if not FileExists( aFilePath ) then
+    begin
+      Result.ErrorMessage := 'File not found: ' + aFilePath;
+      Exit;
+    end;
+
+  if aTextIsBase64 then
+    begin
+      if not DecodeBase64( aNewText, lText ) then
+        begin
+          Result.ErrorMessage := 'Invalid Base64 string';
+          Exit;
+        end;
+    end
+    else lText := aNewText;
+
+  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+    begin
+      Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
+      Exit;
+    end;
+
+  try
+    if ( aLineNumber < 1 ) or ( aLineNumber > lLines.Count ) then
+      begin
+        Result.ErrorMessage := 'Invalid line number: ' + IntToStr( aLineNumber ) + ' (file has ' + IntToStr( lLines.Count ) + ' lines)';
+        Exit;
+      end;
+
+    if aDiff then
+      begin
+        lOriginal := TStringList.Create;
+        lOriginal.Text := lLines.Text;
+      end
+      else lOriginal := NIL;
+
+    lExpandedText := TMacroExpander.ExpandMacros( lText, aFilePath, aLineNumber );
+    lLines[ aLineNumber - 1 ] := lExpandedText;
+    Result.LinesChanged := 1;
+
+    if aDiff then
+      begin
+        TDiffHelper.ShowDiff( lOriginal, lLines, aFilePath );
+        lOriginal.Free;
+      end;
+
+    if aDryRun then
+      begin
+        if aVerbose then
+          WriteLn( 'DRY-RUN: Would replace line ', aLineNumber, ' with: ', lExpandedText );
+
+        Result.Success := true;
+        Exit;
+      end;
+
+    if aBackup then
+      if not CreateBackup( aFilePath ) then
+        begin
+          Result.ErrorMessage := 'Failed to create backup';
+          Exit;
+        end;
+
+    if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+      begin
+        Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
+        Exit;
+      end;
+
+    if aVerbose then
+      WriteLn( 'SUCCESS: Replaced line ', aLineNumber );
+
+    Result.Success := true;
+  finally
+    lLines.Free;
   end;
 end;
 

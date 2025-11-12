@@ -4,6 +4,48 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.7.1] - 2025-11-11
+
+### Added
+- **JSON Config Support for Line Manipulation**: Load line operations from JSON config files
+- **Batch Mode for Line Operations**: Multiple line operations are automatically sorted and executed in optimal order
+- **Automatic Sorting**: Operations are executed from highest to lowest line number to prevent index shifting
+- **Mixed Operations Support**: Combine delete-line, delete-lines, and replace-line in one JSON config
+
+### Changed
+- Extended `StrEditor.Config.pas` to support new line manipulation commands in JSON
+- Created `StrEditor.BatchProcessor.pas` for automatic batch processing and sorting
+- Integrated batch processor into main program for automatic detection and execution
+- Updated documentation (DOC/INTEGRATION.md, DOC/AUGMENT-RULES.md) with JSON config examples
+
+### Tests
+- 100/100 tests passing (DUnitX)
+- Added 8 new tests for JSON config and batch processor
+
+---
+
+## [1.7.0] - 2025-11-11
+
+### Added
+- **Delete Line Feature**: Delete a single line with `--delete-line <n>`
+- **Delete Lines Feature**: Delete multiple lines with `--delete-lines <n,m,k>` or `--start-line/--end-line`
+- **Replace Line Feature**: Replace a complete line with `--replace-line <n> --with <text>`
+- **Base64 Support for Replace Line**: Use `--with-base64` for special characters
+- **Direct Line Manipulation**: Simpler and more efficient than string replacement
+
+### Changed
+- Added `TStringOperations.DeleteLine` method
+- Added `TStringOperations.DeleteLines` method (two overloads: range and comma-separated)
+- Added `TStringOperations.ReplaceLine` method with Base64 support
+- Updated command-line parser to support new line manipulation commands
+- Updated help text with new commands and examples
+
+### Tests
+- 92/92 tests passing (DUnitX)
+- Added 16 new tests for line manipulation features
+
+---
+
 ## [1.6.0] - 2025-11-11
 
 ### Added

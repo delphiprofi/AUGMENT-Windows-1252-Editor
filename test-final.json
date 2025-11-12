@@ -1,0 +1,21 @@
+{
+  "operations": [
+    {
+      "command": "delete-line",
+      "file": "test-final.txt",
+      "line": 5
+    },
+    {
+      "command": "replace-line",
+      "file": "test-final.txt",
+      "line": 2,
+      "with": "Line 2 - REPLACED"
+    },
+    {
+      "command": "delete-line",
+      "file": "test-final.txt",
+      "line": 8
+    }
+  ]
+}
+

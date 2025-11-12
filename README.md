@@ -1,7 +1,7 @@
 # AUGMENT-Windows-1252-Editor
 This is a replacement for the built-in str-replace-editor, if you are dealing with legacy code that is not UTF-8 and cannot be migrated!
 
-**Version:** 1.6.0
+**Version:** 1.7.1
 **Last Updated:** 2025-11-11
 
 ---
@@ -18,6 +18,8 @@ StrEditor is a command-line tool for replacing and inserting text in Delphi sour
 - ✅ **Reinterpret Encoding**: Fix broken encodings (`--reinterpret-as`) **[NEW in v1.4]**
 - ✅ **Base64-Parameter**: Solve PowerShell special character problems (`--old-str-base64`) **[NEW in v1.5]**
 - ✅ **Multi-Line String Replace**: Replace strings spanning multiple lines (`--multi-line`) **[NEW in v1.6]**
+- ✅ **Line Manipulation**: Delete and replace complete lines (`--delete-line`, `--replace-line`) **[NEW in v1.7]**
+- ✅ **JSON Config & Batch Mode**: Load multiple line operations from JSON with automatic sorting **[NEW in v1.7.1]**
 - ✅ **Show/Cat Command**: Display file content with encoding awareness (`--show`) **[NEW in v1.2]**
 - ✅ **Umlaut-Support**: German umlauts (ü, ö, ä, ß) are correctly handled
 - ✅ **String-Replace**: Exact string replacement with optional line ranges

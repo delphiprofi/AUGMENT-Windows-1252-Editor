@@ -1,7 +1,7 @@
 # AUGMENT-Windows-1252-Editor
 Dies ist ein Ersatz für den eingebauten str-replace-editor, wenn Sie mit Legacy-Code arbeiten, der nicht UTF-8 ist und nicht migriert werden kann!
 
-**Version:** 1.6.0
+**Version:** 1.7.1
 **Letztes Update:** 2025-11-11
 
 ---
@@ -18,6 +18,8 @@ StrEditor ist ein Kommandozeilen-Tool zum Ersetzen und Einfügen von Text in Del
 - ✅ **Reinterpret Encoding**: Fehlerhafte Encodings reparieren (`--reinterpret-as`) **[NEU in v1.4]**
 - ✅ **Base64-Parameter**: PowerShell-Sonderzeichen-Probleme lösen (`--old-str-base64`) **[NEU in v1.5]**
 - ✅ **Multi-Line String Replace**: Strings über mehrere Zeilen ersetzen (`--multi-line`) **[NEU in v1.6]**
+- ✅ **Zeilen-Manipulation**: Komplette Zeilen löschen und ersetzen (`--delete-line`, `--replace-line`) **[NEU in v1.7]**
+- ✅ **JSON Config & Batch-Modus**: Mehrere Zeilen-Operationen aus JSON laden mit automatischer Sortierung **[NEU in v1.7.1]**
 - ✅ **Show/Cat-Befehl**: Dateiinhalt mit Encoding-Awareness anzeigen (`--show`) **[NEU in v1.2]**
 - ✅ **Umlaut-Support**: Deutsche Umlaute (ü, ö, ä, ß) werden korrekt behandelt
 - ✅ **String-Replace**: Exakte String-Ersetzung mit optionalen Zeilenbereichen

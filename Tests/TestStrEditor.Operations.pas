@@ -170,6 +170,54 @@ Type
 
       [Test]
       procedure TestMultiLine_WithBackup;
+
+      [Test]
+      procedure TestDeleteLine_Single;
+
+      [Test]
+      procedure TestDeleteLine_First;
+
+      [Test]
+      procedure TestDeleteLine_Last;
+
+      [Test]
+      procedure TestDeleteLine_InvalidLine;
+
+      [Test]
+      procedure TestDeleteLines_Range;
+
+      [Test]
+      procedure TestDeleteLines_MultipleLines;
+
+      [Test]
+      procedure TestDeleteLines_InvalidRange;
+
+      [Test]
+      procedure TestDeleteLines_WithBackup;
+
+      [Test]
+      procedure TestDeleteLines_DryRun;
+
+      [Test]
+      procedure TestReplaceLine_Single;
+
+      [Test]
+      procedure TestReplaceLine_First;
+
+      [Test]
+      procedure TestReplaceLine_Last;
+
+      [Test]
+      procedure TestReplaceLine_InvalidLine;
+
+      [Test]
+      procedure TestReplaceLine_WithBackup;
+
+      [Test]
+      procedure TestReplaceLine_DryRun;
+
+      [Test]
+      procedure TestReplaceLine_Base64;
   end;
 
 implementation
@@ -1315,6 +1363,336 @@ begin
 
   if TFile.Exists( lBackupPath ) then
     TFile.Delete( lBackupPath );
+end;
+
+procedure TTestStringOperations.TestDeleteLine_Single;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lResult := TStringOperations.DeleteLine( fTestFilePath, 2 );
+
+  Assert.IsTrue( lResult.Success, 'DeleteLine should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should delete 1 line' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+
+  try
+    Assert.AreEqual( 2, lLines.Count, 'Should have 2 lines after deletion' );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should remain' );
+    Assert.AreEqual( 'Line 3', lLines[ 1 ], 'Line 3 should remain' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestDeleteLine_First;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lResult := TStringOperations.DeleteLine( fTestFilePath, 1 );
+
+  Assert.IsTrue( lResult.Success, 'DeleteLine should succeed' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+
+  try
+    Assert.AreEqual( 2, lLines.Count, 'Should have 2 lines after deletion' );
+    Assert.AreEqual( 'Line 2', lLines[ 0 ], 'Line 2 should be first' );
+    Assert.AreEqual( 'Line 3', lLines[ 1 ], 'Line 3 should be second' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestDeleteLine_Last;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lResult := TStringOperations.DeleteLine( fTestFilePath, 3 );
+
+  Assert.IsTrue( lResult.Success, 'DeleteLine should succeed' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+
+  try
+    Assert.AreEqual( 2, lLines.Count, 'Should have 2 lines after deletion' );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should remain' );
+    Assert.AreEqual( 'Line 2', lLines[ 1 ], 'Line 2 should remain' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestDeleteLine_InvalidLine;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2', etWindows1252 );
+
+  lResult := TStringOperations.DeleteLine( fTestFilePath, 10 );
+
+  Assert.IsFalse( lResult.Success, 'DeleteLine should fail for invalid line' );
+  Assert.IsTrue( Pos( 'Invalid line number', lResult.ErrorMessage ) > 0, 'Error message should mention invalid line' );
+end;
+
+procedure TTestStringOperations.TestDeleteLines_Range;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3' + #13#10 + 'Line 4' + #13#10 + 'Line 5', etWindows1252 );
+
+  lResult := TStringOperations.DeleteLines( fTestFilePath, 2, 4 );
+
+  Assert.IsTrue( lResult.Success, 'DeleteLines should succeed' );
+  Assert.AreEqual( 3, lResult.LinesChanged, 'Should delete 3 lines' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+
+  try
+    Assert.AreEqual( 2, lLines.Count, 'Should have 2 lines after deletion' );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should remain' );
+    Assert.AreEqual( 'Line 5', lLines[ 1 ], 'Line 5 should remain' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestDeleteLines_MultipleLines;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3' + #13#10 + 'Line 4' + #13#10 + 'Line 5', etWindows1252 );
+
+  lResult := TStringOperations.DeleteLines( fTestFilePath, '1,3,5' );
+
+  Assert.IsTrue( lResult.Success, 'DeleteLines should succeed' );
+  Assert.AreEqual( 3, lResult.LinesChanged, 'Should delete 3 lines' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+
+  try
+    Assert.AreEqual( 2, lLines.Count, 'Should have 2 lines after deletion' );
+    Assert.AreEqual( 'Line 2', lLines[ 0 ], 'Line 2 should remain' );
+    Assert.AreEqual( 'Line 4', lLines[ 1 ], 'Line 4 should remain' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestDeleteLines_InvalidRange;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2', etWindows1252 );
+
+  lResult := TStringOperations.DeleteLines( fTestFilePath, 5, 10 );
+
+  Assert.IsFalse( lResult.Success, 'DeleteLines should fail for invalid range' );
+  Assert.IsTrue( Pos( 'Invalid line number', lResult.ErrorMessage ) > 0, 'Error message should mention invalid line' );
+end;
+
+procedure TTestStringOperations.TestDeleteLines_WithBackup;
+Var
+  lResult     : TOperationResult;
+  lBackupPath : string;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lBackupPath := fTestFilePath + '.bak';
+
+  if TFile.Exists( lBackupPath ) then
+    TFile.Delete( lBackupPath );
+
+  lResult := TStringOperations.DeleteLines( fTestFilePath, 2, 2, False, True );
+
+  Assert.IsTrue( lResult.Success, 'DeleteLines with backup should succeed' );
+  Assert.IsTrue( TFile.Exists( lBackupPath ), 'Backup file should be created' );
+
+  if TFile.Exists( lBackupPath ) then
+    TFile.Delete( lBackupPath );
+end;
+
+procedure TTestStringOperations.TestDeleteLines_DryRun;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lResult := TStringOperations.DeleteLines( fTestFilePath, 2, 2, True );
+
+  Assert.IsTrue( lResult.Success, 'DeleteLines dry-run should succeed' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+
+  try
+    Assert.AreEqual( 3, lLines.Count, 'File should not be modified in dry-run' );
+    Assert.AreEqual( 'Line 2', lLines[ 1 ], 'Line 2 should still exist' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestReplaceLine_Single;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lResult := TStringOperations.ReplaceLine( fTestFilePath, 2, 'New Line 2' );
+
+  Assert.IsTrue( lResult.Success, 'ReplaceLine should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should replace 1 line' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+
+  try
+    Assert.AreEqual( 3, lLines.Count, 'Should still have 3 lines' );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should remain' );
+    Assert.AreEqual( 'New Line 2', lLines[ 1 ], 'Line 2 should be replaced' );
+    Assert.AreEqual( 'Line 3', lLines[ 2 ], 'Line 3 should remain' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestReplaceLine_First;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lResult := TStringOperations.ReplaceLine( fTestFilePath, 1, 'New Line 1' );
+
+  Assert.IsTrue( lResult.Success, 'ReplaceLine should succeed' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+
+  try
+    Assert.AreEqual( 'New Line 1', lLines[ 0 ], 'First line should be replaced' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestReplaceLine_Last;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lResult := TStringOperations.ReplaceLine( fTestFilePath, 3, 'New Line 3' );
+
+  Assert.IsTrue( lResult.Success, 'ReplaceLine should succeed' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+
+  try
+    Assert.AreEqual( 'New Line 3', lLines[ 2 ], 'Last line should be replaced' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestReplaceLine_InvalidLine;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2', etWindows1252 );
+
+  lResult := TStringOperations.ReplaceLine( fTestFilePath, 10, 'New Line' );
+
+  Assert.IsFalse( lResult.Success, 'ReplaceLine should fail for invalid line' );
+  Assert.IsTrue( Pos( 'Invalid line number', lResult.ErrorMessage ) > 0, 'Error message should mention invalid line' );
+end;
+
+procedure TTestStringOperations.TestReplaceLine_WithBackup;
+Var
+  lResult     : TOperationResult;
+  lBackupPath : string;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lBackupPath := fTestFilePath + '.bak';
+
+  if TFile.Exists( lBackupPath ) then
+    TFile.Delete( lBackupPath );
+
+  lResult := TStringOperations.ReplaceLine( fTestFilePath, 2, 'New Line 2', False, True );
+
+  Assert.IsTrue( lResult.Success, 'ReplaceLine with backup should succeed' );
+  Assert.IsTrue( TFile.Exists( lBackupPath ), 'Backup file should be created' );
+
+  if TFile.Exists( lBackupPath ) then
+    TFile.Delete( lBackupPath );
+end;
+
+procedure TTestStringOperations.TestReplaceLine_DryRun;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lResult := TStringOperations.ReplaceLine( fTestFilePath, 2, 'New Line 2', True );
+
+  Assert.IsTrue( lResult.Success, 'ReplaceLine dry-run should succeed' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+
+  try
+    Assert.AreEqual( 'Line 2', lLines[ 1 ], 'Line 2 should not be modified in dry-run' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestReplaceLine_Base64;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+  lBase64   : string;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lBase64 := 'TmV3IExpbmUgMg==';
+
+  lResult := TStringOperations.ReplaceLine( fTestFilePath, 2, lBase64, False, False, False, False, True );
+
+  Assert.IsTrue( lResult.Success, 'ReplaceLine with Base64 should succeed' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+
+  try
+    Assert.AreEqual( 'New Line 2', lLines[ 1 ], 'Line 2 should be replaced with decoded Base64' );
+  finally
+    lLines.Free;
+  end;
 end;
 
 end.

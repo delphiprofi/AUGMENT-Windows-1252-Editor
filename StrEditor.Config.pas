@@ -91,6 +91,8 @@ begin
       aParams.Stats            := lJSON.GetValue<Boolean>( 'stats', false );
       aParams.Verbose          := lJSON.GetValue<Boolean>( 'verbose', false );
       aParams.IndentLevel      := lJSON.GetValue<Integer>( 'indent', 0 );
+      aParams.LineNumber       := lJSON.GetValue<Integer>( 'line', -1 );
+      aParams.LineNumbers      := lJSON.GetValue<string>( 'lines', '' );
 
       lCommand := lJSON.GetValue<string>( 'command', 'str-replace' );
 
@@ -108,6 +110,15 @@ begin
         else
       if SameText( lCommand, 'undo' )
         then aParams.Command := ctUndo
+        else
+      if SameText( lCommand, 'delete-line' )
+        then aParams.Command := ctDeleteLine
+        else
+      if SameText( lCommand, 'delete-lines' )
+        then aParams.Command := ctDeleteLines
+        else
+      if SameText( lCommand, 'replace-line' )
+        then aParams.Command := ctReplaceLine
         else begin
                WriteLn( 'Error: Invalid command in config file: ' + lCommand );
                Exit;
@@ -203,6 +214,10 @@ begin
           lParams.StartLine        := TJSONObject( lOperation ).GetValue<Integer>( 'start-line', -1 );
           lParams.EndLine          := TJSONObject( lOperation ).GetValue<Integer>( 'end-line', -1 );
           lParams.Text             := TJSONObject( lOperation ).GetValue<string>( 'text', '' );
+
+          if lParams.Text = '' then
+            lParams.Text := TJSONObject( lOperation ).GetValue<string>( 'with', '' );
+
           lParams.InsertAfterLine  := TJSONObject( lOperation ).GetValue<Integer>( 'insert-after-line', -1 );
           lParams.RegexPattern     := TJSONObject( lOperation ).GetValue<string>( 'regex-pattern', '' );
           lParams.RegexReplace     := TJSONObject( lOperation ).GetValue<string>( 'regex-replace', '' );
@@ -219,6 +234,8 @@ begin
           lParams.Stats            := TJSONObject( lOperation ).GetValue<Boolean>( 'stats', false );
           lParams.Verbose          := TJSONObject( lOperation ).GetValue<Boolean>( 'verbose', false );
           lParams.IndentLevel      := TJSONObject( lOperation ).GetValue<Integer>( 'indent', 0 );
+          lParams.LineNumber       := TJSONObject( lOperation ).GetValue<Integer>( 'line', -1 );
+          lParams.LineNumbers      := TJSONObject( lOperation ).GetValue<string>( 'lines', '' );
 
           lCommand := TJSONObject( lOperation ).GetValue<string>( 'command', 'str-replace' );
 
@@ -236,6 +253,15 @@ begin
             else
           if SameText( lCommand, 'undo' )
             then lParams.Command := ctUndo
+            else
+          if SameText( lCommand, 'delete-line' )
+            then lParams.Command := ctDeleteLine
+            else
+          if SameText( lCommand, 'delete-lines' )
+            then lParams.Command := ctDeleteLines
+            else
+          if SameText( lCommand, 'replace-line' )
+            then lParams.Command := ctReplaceLine
             else begin
                    WriteLn( 'Error: Invalid command in operation ' + IntToStr( i + 1 ) + ': ' + lCommand );
                    Exit;

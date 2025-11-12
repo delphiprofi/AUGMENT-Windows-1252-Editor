@@ -1,6 +1,6 @@
 # StrEditor - Integration Guide
 
-**Version:** 1.6.0  
+**Version:** 1.7.1
 **Last Updated:** 2025-11-11
 
 ---
@@ -57,6 +57,19 @@ StrEditor is a command-line tool for editing Delphi source files while preservin
 ### Multi-Line String Replace Feature (v1.6)
 - **Multi-Line String Replace**: Replace strings spanning multiple lines (`--multi-line`)
 - **TStringList Optimization**: Better performance for large files
+
+### Line Manipulation Features (v1.7)
+- **Delete Line**: Delete a single line (`--delete-line <n>`)
+- **Delete Lines**: Delete multiple lines (`--delete-lines <n,m,k>` or `--start-line/--end-line`)
+- **Replace Line**: Replace a complete line (`--replace-line <n> --with <text>`)
+- **Base64 Support**: Use `--with-base64` for special characters in replace-line
+- **Direct Line Manipulation**: Simpler and more efficient than string replacement
+
+### JSON Config & Batch Mode (v1.7.1)
+- **JSON Config Support**: Load line manipulation operations from JSON files
+- **Batch Mode**: Multiple line operations are automatically sorted and executed in optimal order
+- **Automatic Sorting**: Operations are executed from highest to lowest line number to avoid index shifting
+- **Mixed Operations**: Combine delete-line, delete-lines, and replace-line in one JSON config
 
 ---
 
@@ -139,6 +152,90 @@ Replace strings spanning multiple lines:
 ```bash
 # Replace multi-line string
 StrEditor.exe --file "test.pas" --old-str "begin\n  WriteLn('Hello');\nend" --new-str "start\n  Print('Hi');\nstop" --multi-line
+```
+
+### Line Manipulation (v1.7)
+Direct line manipulation is simpler and more efficient than string replacement:
+
+```bash
+# Delete a single line
+StrEditor.exe --file "test.pas" --delete-line 25 --backup
+
+# Delete multiple lines (comma-separated)
+StrEditor.exe --file "test.pas" --delete-lines "1,3,5,7" --backup
+
+# Delete line range
+StrEditor.exe --file "test.pas" --delete-lines --start-line 10 --end-line 20 --backup
+
+# Replace a complete line
+StrEditor.exe --file "test.pas" --replace-line 25 --with "  WriteLn('New');" --backup
+
+# Replace line with Base64-encoded text (for special characters)
+$text = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("  WriteLn('Ä Ö Ü');"))
+StrEditor.exe --file "test.pas" --replace-line 25 --with-base64 $text --backup
+
+# Dry-run mode (test without modifying)
+StrEditor.exe --file "test.pas" --delete-line 25 --dry-run
+
+# Show diff
+StrEditor.exe --file "test.pas" --replace-line 25 --with "New Line" --diff
+```
+
+### JSON Config & Batch Mode (v1.7.1)
+Load multiple line operations from a JSON config file:
+
+```json
+{
+  "operations": [
+    {
+      "command": "delete-line",
+      "file": "test.pas",
+      "line": 10
+    },
+    {
+      "command": "delete-lines",
+      "file": "test.pas",
+      "lines": "5,15,25"
+    },
+    {
+      "command": "delete-lines",
+      "file": "test.pas",
+      "start-line": 30,
+      "end-line": 40
+    },
+    {
+      "command": "replace-line",
+      "file": "test.pas",
+      "line": 50,
+      "text": "  WriteLn('New Line');"
+    },
+    {
+      "command": "replace-line",
+      "file": "test.pas",
+      "line": 60,
+      "text": "ICBXcml0ZUxuKCdOZXcgTGluZScpOw==",
+      "text-base64-encoded": true
+    }
+  ]
+}
+```
+
+Execute the JSON config:
+```bash
+StrEditor.exe --config operations.json --verbose
+```
+
+**Automatic Batch Mode:**
+- When multiple line operations are detected, StrEditor automatically enters batch mode
+- Operations are sorted by highest line number first
+- Execution order: highest → lowest line number
+- This prevents index shifting issues when deleting/modifying lines
+
+**Example:**
+```bash
+# User specifies: delete line 5, delete line 20, delete line 10
+# StrEditor executes: delete line 20, then line 10, then line 5
+# Result: All correct lines are deleted!
 ```
 
 ---
