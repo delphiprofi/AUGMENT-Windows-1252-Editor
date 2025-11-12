@@ -1,7 +1,7 @@
 # StrEditor - Integration Guide
 
-**Version:** 1.7.1
-**Last Updated:** 2025-11-11
+**Version:** 1.7.2
+**Last Updated:** 2025-11-12
 
 ---
 
