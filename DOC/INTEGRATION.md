@@ -71,6 +71,12 @@ StrEditor is a command-line tool for editing Delphi source files while preservin
 - **Automatic Sorting**: Operations are executed from highest to lowest line number to avoid index shifting
 - **Mixed Operations**: Combine delete-line, delete-lines, and replace-line in one JSON config
 
+### Insert Before Line (v1.7.2)
+- **Insert Before Line**: Insert text before a specific line with `--insert-before-line <n>`
+- **1-based Line Numbering**: User-friendly line numbering (line 1 = first line)
+- **JSON Config Support**: Use `"command": "insert-before"` in JSON config files
+- **Macro Support**: Full macro expansion support (`{{LINE_NUMBER}}`, `{{FILE_NAME}}`, etc.)
+
 ---
 
 ## Installation
@@ -114,9 +120,21 @@ StrEditor.exe --file "test.pas" --old-str "nil" --new-str "NIL"
 StrEditor.exe --file "test.pas" --old-str "nil" --new-str "NIL" --start-line 10 --end-line 20
 ```
 
-### Insert Text
+### Insert Text After Line
 ```bash
 StrEditor.exe --file "test.pas" --text "// Comment" --insert-after-line 10
+```
+
+### Insert Text Before Line (v1.7.2)
+```bash
+# Insert before line 1 (at the beginning)
+StrEditor.exe --file "test.pas" --text "// Header Comment" --insert-before-line 1
+
+# Insert before line 10
+StrEditor.exe --file "test.pas" --text "// New Comment" --insert-before-line 10
+
+# With Base64 encoding
+StrEditor.exe --file "test.pas" --text-base64 "Ly8gQ29tbWVudA==" --insert-before-line 5
 ```
 
 ### Regex Replace
@@ -214,6 +232,19 @@ Load multiple line operations from a JSON config file:
       "file": "test.pas",
       "line": 60,
       "text": "ICBXcml0ZUxuKCdOZXcgTGluZScpOw==",
+      "text-base64-encoded": true
+    },
+    {
+      "command": "insert-before",
+      "file": "test.pas",
+      "insert-before-line": 1,
+      "text": "// Header Comment"
+    },
+    {
+      "command": "insert-before",
+      "file": "test.pas",
+      "insert-before-line": 70,
+      "text": "Ly8gTmV3IENvbW1lbnQ=",
       "text-base64-encoded": true
     }
   ]

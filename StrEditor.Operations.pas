@@ -60,6 +60,13 @@ Type
 
       {$REGION 'Documentation'}
       /// <summary>
+      ///   Fügt Text vor einer bestimmten Zeile ein
+      /// </summary>
+      {$ENDREGION}
+      class function InsertBefore( const aFilePath : string; const aText : string; const aInsertBeforeLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aTextIsBase64 : Boolean = false ) : TOperationResult;
+
+      {$REGION 'Documentation'}
+      /// <summary>
       ///   Zeigt Datei-Inhalt an (encoding-aware, wie Get-Content)
       /// </summary>
       {$ENDREGION}
@@ -115,6 +122,7 @@ Type
       class function FindAndReplaceMultiLine( const aFileContent : string; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer; out aNewContent : string; const aReplaceAll : Boolean; const aVerbose : Boolean = false ) : Boolean;
 
       class function InsertText( const aLines : TStringList; const aText : string; const aInsertAfterLine : Integer; const aFilePath : string ) : Boolean;
+      class function InsertTextBefore( const aLines : TStringList; const aText : string; const aInsertBeforeLine : Integer; const aFilePath : string ) : Boolean;
       class function CreateBackup( const aFilePath : string ) : Boolean;
 
       {$REGION 'Documentation'}
@@ -344,6 +352,86 @@ begin
   end;
 end;
 
+class function TStringOperations.InsertBefore( const aFilePath : string; const aText : string; const aInsertBeforeLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aTextIsBase64 : Boolean = false ) : TOperationResult;
+Var
+  lLines    : TStringList;
+  lOriginal : TStringList;
+  lEncoding : TEncodingType;
+  lText     : string;
+begin
+  Result.Success      := false;
+  Result.ErrorMessage := '';
+  Result.LinesChanged := 0;
+
+  if aTextIsBase64 then
+    begin
+      if not DecodeBase64( aText, lText ) then
+        begin
+          Result.ErrorMessage := 'Invalid Base64 string for text';
+          Exit;
+        end;
+    end
+  else
+    lText := aText;
+
+  if not FileExists( aFilePath ) then
+    begin
+      Result.ErrorMessage := 'File not found: ' + aFilePath;
+      Exit;
+    end;
+
+  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+    begin
+      Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
+      Exit;
+    end;
+
+  lOriginal := NIL;
+
+  try
+    if aDiff then
+      begin
+        lOriginal := TStringList.Create;
+        lOriginal.Text := lLines.Text;
+      end;
+
+    if not InsertTextBefore( lLines, lText, aInsertBeforeLine, aFilePath ) then
+      begin
+        Result.ErrorMessage := 'Invalid line number: ' + IntToStr( aInsertBeforeLine );
+        Exit;
+      end;
+
+    if aDiff then
+      TDiffHelper.ShowDiff( lOriginal, lLines, aFilePath );
+
+    if not aDryRun then
+      begin
+        if aBackup then
+          begin
+            if not CreateBackup( aFilePath ) then
+              begin
+                Result.ErrorMessage := 'Failed to create backup: ' + aFilePath + '.bak';
+                Exit;
+              end;
+          end;
+
+        if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+          begin
+            Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
+            Exit;
+          end;
+      end;
+
+    Result.Success      := true;
+    Result.LinesChanged := 1;
+  finally
+    lLines.Free;
+
+    if lOriginal <> NIL then
+      lOriginal.Free;
+  end;
+end;
+
 class function TStringOperations.FindAndReplace( const aLines : TStringList; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer; const aVerbose : Boolean = false ) : Boolean;
 Var
   i               : Integer;
@@ -484,6 +572,23 @@ begin
 
   if ( lInsertPos < 0 ) or ( lInsertPos > aLines.Count ) then
     Exit;
+
+  lExpandedText := TMacroExpander.ExpandMacros( aText, aFilePath, lInsertPos + 1 );
+  aLines.Insert( lInsertPos, lExpandedText );
+  Result := true;
+end;
+
+class function TStringOperations.InsertTextBefore( const aLines : TStringList; const aText : string; const aInsertBeforeLine : Integer; const aFilePath : string ) : Boolean;
+Var
+  lInsertPos     : Integer;
+  lExpandedText  : string;
+begin
+  Result := false;
+
+  if ( aInsertBeforeLine < 1 ) or ( aInsertBeforeLine > aLines.Count ) then
+    Exit;
+
+  lInsertPos := aInsertBeforeLine - 1;
 
   lExpandedText := TMacroExpander.ExpandMacros( aText, aFilePath, lInsertPos + 1 );
   aLines.Insert( lInsertPos, lExpandedText );

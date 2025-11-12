@@ -255,6 +255,45 @@ begin
              end;
       end;
 
+    ctInsertBefore:
+      begin
+        if aParams.Verbose then
+          begin
+            if aParams.DryRun
+              then WriteLn( '[DRY-RUN] Inserting text before line ' + IntToStr( aParams.InsertBeforeLine ) + ' in ' + aParams.FilePath )
+              else WriteLn( 'Inserting text before line ' + IntToStr( aParams.InsertBeforeLine ) + ' in ' + aParams.FilePath );
+          end;
+
+        lResult := TStringOperations.InsertBefore( aParams.FilePath, aParams.Text, aParams.InsertBeforeLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.TextIsBase64 );
+
+        if lResult.Success then
+          begin
+            if aParams.Verbose then
+              begin
+                if aParams.DryRun
+                  then WriteLn( '[DRY-RUN] Would insert text' )
+                  else WriteLn( 'Success: Text inserted' );
+              end;
+
+            if aParams.Stats then
+              begin
+                WriteLn;
+                WriteLn( '--- Statistics ---' );
+                WriteLn( 'Lines inserted: ' + IntToStr( lResult.LinesChanged ) );
+                WriteLn( 'Operation: InsertBefore' );
+              end;
+
+            ExitCode := Ord( ecSuccess );
+          end
+        else begin
+               WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+
+               if Pos( 'not found', lResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecFileNotFound )
+                 else ExitCode := Ord( ecEncodingError );
+             end;
+      end;
+
     ctRegexReplace:
       begin
         if aParams.Verbose then

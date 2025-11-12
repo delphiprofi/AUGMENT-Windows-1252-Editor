@@ -17,7 +17,7 @@ Type
   ///   Command-Typ
   /// </summary>
   {$ENDREGION}
-  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine );
+  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine );
 
   {$REGION 'Documentation'}
   /// <summary>
@@ -55,6 +55,7 @@ Type
     StartLine         : Integer;
     EndLine           : Integer;
     InsertAfterLine   : Integer;
+    InsertBeforeLine  : Integer;
     Text              : string;
     JSONFile          : string;
     ConfigFile        : string;
@@ -138,10 +139,11 @@ begin
   aParams.FilePattern     := '';
   aParams.OldStr          := '';
   aParams.NewStr          := '';
-  aParams.StartLine       := 0;
-  aParams.EndLine         := 0;
-  aParams.InsertAfterLine := 0;
-  aParams.Text            := '';
+  aParams.StartLine        := 0;
+  aParams.EndLine          := 0;
+  aParams.InsertAfterLine  := 0;
+  aParams.InsertBeforeLine := 0;
+  aParams.Text             := '';
   aParams.JSONFile        := '';
   aParams.RegexPattern    := '';
   aParams.RegexReplace    := '';
@@ -424,8 +426,12 @@ begin
          if HasParam( '--old-str' ) or HasParam( '--old-str-base64' )
            then aParams.Command := ctStrReplace
            else
-         if HasParam( '--text' ) or HasParam( '--text-base64' )
-           then aParams.Command := ctInsert
+         if HasParam( '--text' ) or HasParam( '--text-base64' ) then
+           begin
+             if HasParam( '--insert-before-line' )
+               then aParams.Command := ctInsertBefore
+               else aParams.Command := ctInsert;
+           end
            else
          if HasParam( '--regex-pattern' ) then
            begin
@@ -472,6 +478,23 @@ begin
         else aParams.Text := GetParamValue( '--text' );
 
       aParams.InsertAfterLine := StrToIntDef( GetParamValue( '--insert-after-line' ), 0 );
+
+      if aParams.Text = '' then
+        begin
+          ShowError( 'Missing required parameter: --text or --text-base64' );
+          Exit;
+        end;
+    end;
+
+  if aParams.Command = ctInsertBefore then
+    begin
+      aParams.TextIsBase64 := HasParam( '--text-base64' );
+
+      if aParams.TextIsBase64
+        then aParams.Text := GetParamValue( '--text-base64' )
+        else aParams.Text := GetParamValue( '--text' );
+
+      aParams.InsertBeforeLine := StrToIntDef( GetParamValue( '--insert-before-line' ), 0 );
 
       if aParams.Text = '' then
         begin
@@ -590,6 +613,7 @@ begin
   WriteLn( 'Usage:' );
   WriteLn( '  StrEditor.exe --file <file> --old-str <old> --new-str <new> [--start-line <n>] [--end-line <n>]' );
   WriteLn( '  StrEditor.exe --file <file> --text <text> --insert-after-line <n>' );
+  WriteLn( '  StrEditor.exe --file <file> --text <text> --insert-before-line <n>' );
   WriteLn( '  StrEditor.exe --file <file> --regex-pattern <pattern> --regex-replace <replacement> [-i] [-m]' );
   WriteLn( '  StrEditor.exe --file <file> --regex-pattern <pattern> --regex-test [-i] [-m]' );
   WriteLn( '  StrEditor.exe --file <file> --delete-line <n> [--backup] [--dry-run] [--diff]' );
@@ -616,6 +640,7 @@ begin
   WriteLn( '  --text <text>              Text to insert' );
   WriteLn( '  --text-base64 <base64>     Text to insert (Base64-encoded)' );
   WriteLn( '  --insert-after-line <n>    Line number after which to insert' );
+  WriteLn( '  --insert-before-line <n>   Line number before which to insert' );
   WriteLn( '  --regex-pattern <pattern>  Regular expression pattern' );
   WriteLn( '  --regex-replace <repl>     Replacement string (supports $1, $2, etc.)' );
   WriteLn( '  --regex-test               Test regex without making changes' );
@@ -657,6 +682,7 @@ begin
   WriteLn( '  StrEditor.exe --file "test.pas" --old-str "nil" --new-str "NIL"' );
   WriteLn( '  StrEditor.exe --file "test.pas" --old-str-base64 "ICAgICB7JElGREVGIFBSRVVOSUNPREV9" --new-str-base64 "ICAgICB7JElGREVGIFVOSUNPREV9"' );
   WriteLn( '  StrEditor.exe --file "test.pas" --text "// Comment" --insert-after-line 10' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --text "// Comment" --insert-before-line 10' );
   WriteLn( '  StrEditor.exe --file "test.pas" --text-base64 "eyRJRkRFRiBERUJVR30=" --insert-after-line 10' );
   WriteLn( '  StrEditor.exe --file "test.pas" --regex-pattern "f(\w+)" --regex-replace "l$1" -i' );
   WriteLn( '  StrEditor.exe --file "test.pas" --regex-pattern "procedure\s+(\w+)" --regex-test' );
@@ -682,8 +708,8 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.7.1' );
-  WriteLn( 'Build: 2025-11-11' );
+  WriteLn( 'StrEditor v1.7.2' );
+  WriteLn( 'Build: 2025-11-12' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
   WriteLn( 'New in v1.7:' );

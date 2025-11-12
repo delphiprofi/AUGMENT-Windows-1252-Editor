@@ -76,6 +76,7 @@ begin
       aParams.EndLine          := lJSON.GetValue<Integer>( 'end-line', -1 );
       aParams.Text             := lJSON.GetValue<string>( 'text', '' );
       aParams.InsertAfterLine  := lJSON.GetValue<Integer>( 'insert-after-line', -1 );
+      aParams.InsertBeforeLine := lJSON.GetValue<Integer>( 'insert-before-line', -1 );
       aParams.RegexPattern     := lJSON.GetValue<string>( 'regex-pattern', '' );
       aParams.RegexReplace     := lJSON.GetValue<string>( 'regex-replace', '' );
       aParams.ConditionPattern := lJSON.GetValue<string>( 'condition-pattern', '' );
@@ -101,6 +102,9 @@ begin
         else
       if SameText( lCommand, 'insert' )
         then aParams.Command := ctInsert
+        else
+      if SameText( lCommand, 'insert-before' )
+        then aParams.Command := ctInsertBefore
         else
       if SameText( lCommand, 'regex-replace' )
         then aParams.Command := ctRegexReplace
@@ -219,6 +223,7 @@ begin
             lParams.Text := TJSONObject( lOperation ).GetValue<string>( 'with', '' );
 
           lParams.InsertAfterLine  := TJSONObject( lOperation ).GetValue<Integer>( 'insert-after-line', -1 );
+          lParams.InsertBeforeLine := TJSONObject( lOperation ).GetValue<Integer>( 'insert-before-line', -1 );
           lParams.RegexPattern     := TJSONObject( lOperation ).GetValue<string>( 'regex-pattern', '' );
           lParams.RegexReplace     := TJSONObject( lOperation ).GetValue<string>( 'regex-replace', '' );
           lParams.ConditionPattern := TJSONObject( lOperation ).GetValue<string>( 'condition-pattern', '' );
@@ -244,6 +249,9 @@ begin
             else
           if SameText( lCommand, 'insert' )
             then lParams.Command := ctInsert
+            else
+          if SameText( lCommand, 'insert-before' )
+            then lParams.Command := ctInsertBefore
             else
           if SameText( lCommand, 'regex-replace' )
             then lParams.Command := ctRegexReplace

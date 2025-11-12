@@ -4,6 +4,26 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.7.2] - 2025-11-12
+
+### Added
+- **Insert Before Line Feature**: Insert text before a specific line with `--insert-before-line <n>`
+- **JSON Config Support**: `insert-before` command in JSON config files
+- **1-based Line Numbering**: User-friendly line numbering (line 1 = first line)
+
+### Implementation
+- Added `TStringOperations.InsertBefore()` method in `StrEditor.Operations.pas`
+- Added `InsertTextBefore()` helper function with 1-based line validation
+- Extended `StrEditor.CommandLine.pas` with `ctInsertBefore` command type
+- Extended `StrEditor.Config.pas` to parse `insert-before-line` from JSON
+- Added `ctInsertBefore` case handler in main program
+
+### Tests
+- 103/103 tests passing (DUnitX)
+- Added 3 new tests for `--insert-before-line` feature
+
+---
+
 ## [1.7.1] - 2025-11-11
 
 ### Added

@@ -1,7 +1,7 @@
 # StrEditor - Augment Agent Integration Rules
 
-**Version:** 1.7.1
-**Last Updated:** 2025-11-11
+**Version:** 1.7.2
+**Last Updated:** 2025-11-12
 
 ---
 
@@ -22,6 +22,9 @@ StrEditor.exe --file "path\to\file.pas" --old-str "oldString" --new-str "newStri
 
 # Insert text after line
 StrEditor.exe --file "path\to\file.pas" --text "// Comment" --insert-after-line 10
+
+# Insert text before line (v1.7.2)
+StrEditor.exe --file "path\to\file.pas" --text "// Header" --insert-before-line 1
 
 # Multi-line string replace (v1.6)
 StrEditor.exe --file "path\to\file.pas" --old-str "begin\n  WriteLn('Hello');\nend" --new-str "start\n  Print('Hi');\nstop" --multi-line

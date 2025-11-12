@@ -46,6 +46,15 @@ Type
       procedure TestInsert_AfterLine;
 
       [Test]
+      procedure TestInsert_BeforeLine;
+
+      [Test]
+      procedure TestInsert_BeforeLine_FirstLine;
+
+      [Test]
+      procedure TestInsert_BeforeLine_LastLine;
+
+      [Test]
       procedure TestInsert_AtBeginning;
 
       [Test]
@@ -362,6 +371,76 @@ begin
     Assert.AreEqual( 3, lLines.Count, 'Should have 3 lines' );
     Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should be unchanged' );
     Assert.AreEqual( 'Inserted Line', lLines[ 1 ], 'Line 2 should be inserted line' );
+    Assert.AreEqual( 'Line 2', lLines[ 2 ], 'Line 3 should be old line 2' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestInsert_BeforeLine;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  lResult := TStringOperations.InsertBefore( fTestFilePath, 'Inserted Line', 2 );
+
+  Assert.IsTrue( lResult.Success, 'Insert should succeed' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+  try
+    Assert.AreEqual( 4, lLines.Count, 'Should have 4 lines' );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should be unchanged' );
+    Assert.AreEqual( 'Inserted Line', lLines[ 1 ], 'Line 2 should be inserted line' );
+    Assert.AreEqual( 'Line 2', lLines[ 2 ], 'Line 3 should be old line 2' );
+    Assert.AreEqual( 'Line 3', lLines[ 3 ], 'Line 4 should be old line 3' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestInsert_BeforeLine_FirstLine;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2', etWindows1252 );
+
+  lResult := TStringOperations.InsertBefore( fTestFilePath, 'First Line', 1 );
+
+  Assert.IsTrue( lResult.Success, 'Insert should succeed' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+  try
+    Assert.AreEqual( 3, lLines.Count, 'Should have 3 lines' );
+    Assert.AreEqual( 'First Line', lLines[ 0 ], 'Line 1 should be inserted line' );
+    Assert.AreEqual( 'Line 1', lLines[ 1 ], 'Line 2 should be old line 1' );
+    Assert.AreEqual( 'Line 2', lLines[ 2 ], 'Line 3 should be old line 2' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestInsert_BeforeLine_LastLine;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2', etWindows1252 );
+
+  lResult := TStringOperations.InsertBefore( fTestFilePath, 'Before Last', 2 );
+
+  Assert.IsTrue( lResult.Success, 'Insert should succeed' );
+
+  TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+  try
+    Assert.AreEqual( 3, lLines.Count, 'Should have 3 lines' );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should be unchanged' );
+    Assert.AreEqual( 'Before Last', lLines[ 1 ], 'Line 2 should be inserted line' );
     Assert.AreEqual( 'Line 2', lLines[ 2 ], 'Line 3 should be old line 2' );
   finally
     lLines.Free;
