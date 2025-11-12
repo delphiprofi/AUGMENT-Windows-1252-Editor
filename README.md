@@ -3,6 +3,30 @@ This is a replacement for the built-in str-replace-editor, if you are dealing wi
 
 **Version:** 1.7.2
 **Last Updated:** 2025-11-12
+**License:** MIT License - see [LICENSE.md](LICENSE.md)
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# Download the latest release
+# Extract StrEditor.exe to a directory in your PATH (e.g., C:\Delphi XE16\bin)
+
+# Replace a string in a Delphi file
+StrEditor.exe --file "MyUnit.pas" --old-str "TObject" --new-str "TInterfacedObject"
+
+# Insert text before line 10
+StrEditor.exe --file "MyUnit.pas" --text "  fNewField : string;" --insert-before-line 10
+
+# Delete a line
+StrEditor.exe --file "MyUnit.pas" --delete-line 25 --backup
+
+# Show file content (encoding-aware)
+StrEditor.exe --file "MyUnit.pas" --show --head 20
+```
+
+**For Augment Agent users:** StrEditor automatically replaces the built-in `str-replace-editor` when installed in your PATH. See [DOC/INTEGRATION.md](DOC/INTEGRATION.md) for details.
 
 ---
 
@@ -205,8 +229,19 @@ http://www.delphiprofi.com
 
 ---
 
+## 📄 License
+
+MIT License - Copyright (c) 2025 Frank Lauter (DelphiProfi)
+
+See [LICENSE.md](LICENSE.md) for full license text.
+
+---
+
 ## 🤝 Contact
 
 For questions or issues, please create an issue on GitHub:
 https://github.com/delphiprofi/AUGMENT-Windows-1252-Editor/issues
+
+**Author:** Frank Lauter (DelphiProfi)
+**Website:** http://www.delphiprofi.com
 
