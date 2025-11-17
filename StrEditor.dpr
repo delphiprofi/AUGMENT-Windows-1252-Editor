@@ -15,6 +15,7 @@ Uses
 , StrEditor.Undo
 , StrEditor.Config
 , StrEditor.BatchProcessor
+, StrEditor.Documentation
 ;
 
 procedure ProcessSingleFile( const aParams : TCommandLineParams );
@@ -172,6 +173,60 @@ begin
           end;
 
         ExitCode := Ord( ecSuccess );
+      end;
+
+    ctDocs:
+      begin
+        if aParams.DocsListFiles then
+          begin
+            Var lFiles := TDocumentation.ListDocumentationFiles;
+
+            if Length( lFiles ) = 0 then
+              begin
+                WriteLn( 'No documentation files found in exe directory' );
+                ExitCode := Ord( ecFileNotFound );
+                Exit;
+              end;
+
+            WriteLn( 'Available documentation files:' );
+            WriteLn;
+
+            for Var lFile in lFiles do
+              WriteLn( '  ' + lFile );
+
+            ExitCode := Ord( ecSuccess );
+            Exit;
+          end;
+
+        Var lDocPath := TDocumentation.GetDocumentationPath( aParams.DocsFile );
+
+        if aParams.DocsOpenBrowser then
+          begin
+            Var lBrowserResult := TDocumentation.OpenInBrowser( lDocPath );
+
+            if lBrowserResult.Success then
+              begin
+                WriteLn( lBrowserResult.Content );
+                ExitCode := Ord( ecSuccess );
+              end
+            else begin
+                   WriteLn( 'ERROR: ' + lBrowserResult.ErrorMessage );
+                   ExitCode := Ord( ecFileNotFound );
+                 end;
+          end
+        else begin
+               Var lDocResult := TDocumentation.ShowDocs( lDocPath, aParams.ShowHead, aParams.ShowTail, aParams.ShowLineNumbers );
+
+               if lDocResult.Success then
+                 begin
+                   WriteLn( lDocResult.Content );
+                   ExitCode := Ord( ecSuccess );
+                 end
+               else begin
+                      WriteLn( 'ERROR: ' + lDocResult.ErrorMessage );
+                      ExitCode := Ord( ecFileNotFound );
+                    end;
+             end;
       end;
 
     ctStrReplace:

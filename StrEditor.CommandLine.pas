@@ -17,7 +17,7 @@ Type
   ///   Command-Typ
   /// </summary>
   {$ENDREGION}
-  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine );
+  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine, ctDocs );
 
   {$REGION 'Documentation'}
   /// <summary>
@@ -84,6 +84,9 @@ Type
     RegexIsBase64     : Boolean;
     LineNumber        : Integer;
     LineNumbers       : string;
+    DocsFile          : string;
+    DocsListFiles     : Boolean;
+    DocsOpenBrowser   : Boolean;
   end;
 
   {$REGION 'Documentation'}
@@ -268,6 +271,32 @@ begin
         begin
           ShowError( 'Missing required parameter: --file' );
           Exit;
+        end;
+
+      Result := true;
+      Exit;
+    end;
+
+  if HasParam( '--docs' ) then
+    begin
+      aParams.Command         := ctDocs;
+      aParams.DocsFile        := GetParamValue( '--docs' );
+      aParams.DocsListFiles   := HasParam( '--list' );
+      aParams.DocsOpenBrowser := HasParam( '--open-in-browser' );
+      aParams.ShowLineNumbers := HasParam( '--line-numbers' );
+
+      if HasParam( '--head' ) or HasParam( '--first' ) then
+        begin
+          if HasParam( '--head' )
+            then aParams.ShowHead := StrToIntDef( GetParamValue( '--head' ), 0 )
+            else aParams.ShowHead := StrToIntDef( GetParamValue( '--first' ), 0 );
+        end;
+
+      if HasParam( '--tail' ) or HasParam( '--last' ) then
+        begin
+          if HasParam( '--tail' )
+            then aParams.ShowTail := StrToIntDef( GetParamValue( '--tail' ), 0 )
+            else aParams.ShowTail := StrToIntDef( GetParamValue( '--last' ), 0 );
         end;
 
       Result := true;
@@ -574,7 +603,8 @@ end;
 
 class function TCommandLineParser.GetParamValue( const aParamName : string ) : string;
 Var
-  i : Integer;
+  i         : Integer;
+  lNextParam : string;
 begin
   Result := '';
 
@@ -582,8 +612,13 @@ begin
     begin
       if SameText( ParamStr( i ), aParamName ) then
         begin
-          if i < ParamCount
-            then Result := ParamStr( i + 1 );
+          if i < ParamCount then
+            begin
+              lNextParam := ParamStr( i + 1 );
+
+              if ( Length( lNextParam ) > 0 ) and ( lNextParam[ 1 ] <> '-' )
+                then Result := lNextParam;
+            end;
 
           Exit;
         end;
@@ -625,6 +660,7 @@ begin
   WriteLn( '  StrEditor.exe --file <file> --convert-encoding --to <utf8|windows1252> [--backup] [--dry-run]' );
   WriteLn( '  StrEditor.exe --file <file> --reinterpret-as <utf8|windows1252> [--backup] [--dry-run]' );
   WriteLn( '  StrEditor.exe --file <file> --show [--head <n>] [--tail <n>] [--line-numbers] [--raw]' );
+  WriteLn( '  StrEditor.exe --docs [<file>] [--list] [--head <n>] [--tail <n>] [--line-numbers]' );
   WriteLn( '  StrEditor.exe --help' );
   WriteLn( '  StrEditor.exe --version' );
   WriteLn;
@@ -674,6 +710,9 @@ begin
   WriteLn( '  --end-line <n>             End line for show (with --start-line)' );
   WriteLn( '  --line-numbers             Show line numbers' );
   WriteLn( '  --raw                      Show as single string (no line breaks)' );
+  WriteLn( '  --docs [<file>]            Show documentation (default: README.md)' );
+  WriteLn( '  --list                     List available documentation files (with --docs)' );
+  WriteLn( '  --open-in-browser          Open documentation in browser (with --docs)' );
   WriteLn( '  --verbose                  Show detailed information' );
   WriteLn( '  --help, -h                 Show this help' );
   WriteLn( '  --version, -v              Show version' );
@@ -692,6 +731,10 @@ begin
   WriteLn( '  StrEditor.exe --file "test.pas" --show --head 10 --line-numbers' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --tail 5' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --start-line 10 --end-line 20' );
+  WriteLn( '  StrEditor.exe --docs' );
+  WriteLn( '  StrEditor.exe --docs CHANGELOG.md --head 20' );
+  WriteLn( '  StrEditor.exe --docs --list' );
+  WriteLn( '  StrEditor.exe --docs AUGMENT-INTEGRATION.md --open-in-browser' );
   WriteLn( '  StrEditor.exe --file "test.pas" --delete-line 25 --backup' );
   WriteLn( '  StrEditor.exe --file "test.pas" --delete-lines "1,3,5" --backup' );
   WriteLn( '  StrEditor.exe --file "test.pas" --delete-lines --start-line 10 --end-line 20 --backup' );
@@ -708,8 +751,8 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.7.2' );
-  WriteLn( 'Build: 2025-11-12' );
+  WriteLn( 'StrEditor v1.7.3' );
+  WriteLn( 'Build: 2025-11-17' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
   WriteLn( 'New in v1.7:' );
