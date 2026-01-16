@@ -3,9 +3,39 @@ type: "agent_requested"
 description: "Example description"
 ---
 
+## 📌 TL;DR - Die 3 wichtigsten Regeln
+
+1. **🚫 NIEMALS** den internen `str-replace-editor` für `.pas` Dateien verwenden → Kaputte Umlaute!
+2. **✅ IMMER** `StrEditor.exe` verwenden für Delphi-Dateien
+3. **🎯 BEI MEHREREN OPERATIONEN** → **JSON-Config verwenden!** (nicht mehrere Einzelaufrufe)
+
+---
+
+## 🚨 KRITISCHE REGEL: NIEMALS str-replace-editor für .pas Dateien verwenden!
+
+**⚠️ WARNUNG:** Der interne `str-replace-editor` speichert IMMER als UTF-8 ohne BOM!
+Delphi-Dateien ohne BOM werden als **Windows-1252** interpretiert → **KAPUTTE UMLAUTE!**
+
+### Bei versehentlicher Verwendung von str-replace-editor:
+
+**Symptom:** Umlaute werden als `Ã¤` `Ã¶` `Ã¼` `Ã` `Ã„` `Ã–` `Ãœ` angezeigt
+
+**Sofortige Reparatur:**
+```powershell
+# MUSS SOFORT nach versehentlicher Bearbeitung ausgeführt werden!
+StrEditor.exe --file "DATEINAME.pas" --reinterpret-as utf8 --backup --verbose
+```
+
+**Erklärung:**
+- `--reinterpret-as utf8` liest die Datei als UTF-8 (wie sie vom Editor gespeichert wurde)
+- Speichert sie dann als Windows-1252 (wie Delphi sie erwartet)
+- `Ã¤` (UTF-8 Bytes für ä) wird zu `ä` (Windows-1252)
+
+---
+
 ## 🔧 StrEditor Integration für Delphi-Dateien
 
-**Version:** 1.7.2 (2025-11-12)
+**Version:** 1.7.4 (2026-01-11)
 
 ### Wichtig: Verwende IMMER StrEditor statt str-replace-editor
 
@@ -17,14 +47,81 @@ Für die Bearbeitung von Delphi-Dateien (`.pas`, `.dpr`, `.dpk`, `.dfm`, `.fmx`)
 
 ---
 
-### Grundlegende Verwendung
+## 🎯 WICHTIG: JSON-Config ist die BEVORZUGTE Methode!
 
-**Einfacher String Replace:**
+### ⚠️ REGEL: Bei MEHREREN Operationen IMMER JSON-Config verwenden!
+
+**Warum JSON-Config?**
+1. **Effizienz:** Eine Datei wird nur EINMAL gelesen und geschrieben (statt N mal bei Einzelaufrufen)
+2. **Atomarität:** Alle Operationen werden zusammen ausgeführt oder keine
+3. **Automatische Sortierung:** Zeilenoperationen werden automatisch von unten nach oben sortiert (verhindert Index-Shifting)
+4. **Keine Encoding-Probleme:** JSON ist UTF-8, aber Strings werden korrekt behandelt
+5. **Keine PowerShell-Escaping-Probleme:** Sonderzeichen sind in JSON sicher
+
+### 📋 JSON-Config Quick-Start
+
+**Schritt 1:** Erstelle eine JSON-Datei (z.B. `operations.json`):
+```json
+{
+  "operations": [
+    {
+      "command": "replace-line",
+      "file": "MyUnit.pas",
+      "line": 25,
+      "text": "  WriteLn('Neue Zeile');"
+    },
+    {
+      "command": "delete-line",
+      "file": "MyUnit.pas",
+      "line": 30
+    },
+    {
+      "command": "insert-before",
+      "file": "MyUnit.pas",
+      "line": 10,
+      "text": "  // Neuer Kommentar"
+    }
+  ]
+}
+```
+
+**Schritt 2:** Führe aus:
+```bash
+StrEditor.exe --config operations.json --backup --verbose
+```
+
+### ❌ FALSCH: Mehrere Einzelaufrufe
+```bash
+# NICHT SO! Ineffizient und fehleranfällig!
+StrEditor.exe --file "MyUnit.pas" --replace-line 25 --with "Text1"
+StrEditor.exe --file "MyUnit.pas" --replace-line 30 --with "Text2"
+StrEditor.exe --file "MyUnit.pas" --delete-line 35
+```
+
+### ✅ RICHTIG: Eine JSON-Config
+```json
+{
+  "operations": [
+    {"command": "replace-line", "file": "MyUnit.pas", "line": 25, "text": "Text1"},
+    {"command": "replace-line", "file": "MyUnit.pas", "line": 30, "text": "Text2"},
+    {"command": "delete-line", "file": "MyUnit.pas", "line": 35}
+  ]
+}
+```
+```bash
+StrEditor.exe --config operations.json --backup --verbose
+```
+
+---
+
+### Grundlegende Verwendung (Einzeloperationen)
+
+**Einfacher String Replace (nur für EINE Operation):**
 ```
 StrEditor.exe --file "MyUnit.pas" --old-str "TObject" --new-str "TInterfacedObject"
 ```
 
-**String Replace mit Zeilenbereich:**
+**String Replace mit Zeilenbereich:
 ```
 StrEditor.exe --file "MyUnit.pas" --old-str "Integer" --new-str "Int64" --start-line 10 --end-line 50
 ```
@@ -226,6 +323,60 @@ StrEditor.exe --config operations.json --verbose
 - **Verhindert Index-Shifting:** Keine manuellen Zeilennummern-Anpassungen nötig
 - **Gemischte Operationen:** `delete-line`, `delete-lines`, `replace-line`, `insert-before` kombinierbar
 - **Batch-Modus:** Mehrere Dateien und Operationen in einem Aufruf
+
+**🔥 JSON-Config Praxis-Beispiele:**
+
+**Beispiel 1: Mehrere Zeilen in einer Datei ändern**
+```json
+{
+  "operations": [
+    {"command": "replace-line", "file": "MyUnit.pas", "line": 5, "text": "Unit MyNewUnit;"},
+    {"command": "replace-line", "file": "MyUnit.pas", "line": 10, "text": "  fValue : Integer;"},
+    {"command": "delete-line", "file": "MyUnit.pas", "line": 15},
+    {"command": "insert-before", "file": "MyUnit.pas", "line": 20, "text": "  // Neuer Kommentar"}
+  ]
+}
+```
+
+**Beispiel 2: Mehrere Dateien in einem Aufruf**
+```json
+{
+  "operations": [
+    {"command": "replace-line", "file": "Unit1.pas", "line": 1, "text": "Unit Unit1_Renamed;"},
+    {"command": "replace-line", "file": "Unit2.pas", "line": 1, "text": "Unit Unit2_Renamed;"},
+    {"command": "replace-line", "file": "Unit3.pas", "line": 1, "text": "Unit Unit3_Renamed;"}
+  ]
+}
+```
+
+**Beispiel 3: String-Replace via JSON (für Sonderzeichen)**
+```json
+{
+  "file": "MyUnit.pas",
+  "old-str": "{$IFDEF DEBUG}",
+  "new-str": "{$IFDEF RELEASE}",
+  "verbose": true,
+  "backup": true
+}
+```
+
+**⚠️ MERKE:** Wenn du mehr als 2 Operationen an einer Datei durchführen willst → JSON-Config!
+
+**Repair Umlauts (kaputte Umlaute reparieren):** 🆕 **[NEU in v1.7.4]**
+```
+# Umlaute reparieren mit VCS (Mercurial/Git)
+StrEditor.exe --file "MyUnit.pas" --repair-umlauts --backup --verbose
+
+# Dry-Run (Test ohne Änderung)
+StrEditor.exe --file "MyUnit.pas" --repair-umlauts --dry-run --verbose
+
+# Mit Referenz-Datei statt VCS
+StrEditor.exe --file "MyUnit.pas" --repair-umlauts --reference "original.pas" --verbose
+```
+- Repariert kaputte UTF-8 Byte-Sequenzen in Windows-1252 Dateien
+- Erkennt und repariert: Ã¤→ä, Ã¶→ö, Ã¼→ü, Ã→ß, Ã„→Ä, Ã–→Ö, Ãœ→Ü
+- VCS-Integration: Verwendet automatisch Mercurial (hg) oder Git
+- **Anwendungsfall:** Datei wurde versehentlich mit `str-replace-editor` bearbeitet
 
 ---
 

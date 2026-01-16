@@ -1,13 +1,49 @@
 # StrEditor - Integration Guide
 
-**Version:** 1.7.2
-**Last Updated:** 2025-11-12
+**Version:** 1.7.4
+**Last Updated:** 2026-01-11
+
+---
+
+## 📌 TL;DR - Quick Start
+
+1. **Use `StrEditor.exe`** instead of `str-replace-editor` for Delphi files
+2. **For MULTIPLE operations** → Always use **JSON-Config** (not multiple single calls!)
+3. **Path:** `C:\Delphi XE16\bin\StrEditor.exe` (in PATH)
+
+### Quick Example: JSON-Config (Preferred Method)
+```json
+{
+  "operations": [
+    {"command": "replace-line", "file": "MyUnit.pas", "line": 25, "text": "  NewCode;"},
+    {"command": "delete-line", "file": "MyUnit.pas", "line": 30},
+    {"command": "insert-before", "file": "MyUnit.pas", "line": 10, "text": "  // Comment"}
+  ]
+}
+```
+```bash
+StrEditor.exe --config operations.json --backup --verbose
+```
 
 ---
 
 ## Overview
 
 StrEditor is a command-line tool for editing Delphi source files while preserving encoding (Windows-1252 and UTF-8). It is designed to replace the internal `str-replace-editor` tool used by Augment/VSCode.
+
+---
+
+## ⚠️ IMPORTANT: Use JSON-Config for Multiple Operations!
+
+**Why JSON-Config?**
+| Single Calls (❌ Inefficient) | JSON-Config (✅ Efficient) |
+|-------------------------------|---------------------------|
+| File read/written N times | File read/written 1 time |
+| Each call is isolated | All operations atomic |
+| Manual line number tracking | Automatic sorting (high→low) |
+| Escaping issues in PowerShell | No escaping needed |
+
+**Rule:** If you need more than 2 operations on a file → Use JSON-Config!
 
 ---
 
@@ -77,6 +113,17 @@ StrEditor is a command-line tool for editing Delphi source files while preservin
 - **JSON Config Support**: Use `"command": "insert-before"` in JSON config files
 - **Macro Support**: Full macro expansion support (`{{LINE_NUMBER}}`, `{{FILE_NAME}}`, etc.)
 
+### Documentation Viewer (v1.7.3)
+- **Documentation Viewer**: View documentation files with `--docs [<file>]` command
+- **Browser Integration**: Open documentation in default browser with `--open-in-browser` flag
+- **Documentation Listing**: List all available documentation files with `--docs --list`
+
+### Repair Umlauts (v1.7.4)
+- **Repair Umlauts**: Automatically repair broken umlauts in Delphi source files (`--repair-umlauts`)
+- **VCS Integration**: Automatically uses Mercurial (hg) or Git to get original file content
+- **Reference File**: Use a reference file instead of VCS (`--reference <file>`)
+- **Smart Detection**: Detects broken UTF-8 bytes in Windows-1252 files (Ã¤ → ä, Ã¶ → ö, etc.)
+
 ---
 
 ## Installation
@@ -135,6 +182,18 @@ StrEditor.exe --file "test.pas" --text "// New Comment" --insert-before-line 10
 
 # With Base64 encoding
 StrEditor.exe --file "test.pas" --text-base64 "Ly8gQ29tbWVudA==" --insert-before-line 5
+```
+
+### Repair Umlauts (v1.7.4)
+```bash
+# Repair umlauts using VCS (Mercurial/Git)
+StrEditor.exe --file "broken.pas" --repair-umlauts --backup --verbose
+
+# Preview changes without modifying (dry-run)
+StrEditor.exe --file "broken.pas" --repair-umlauts --dry-run --verbose
+
+# Use reference file instead of VCS
+StrEditor.exe --file "broken.pas" --repair-umlauts --reference "original.pas" --verbose
 ```
 
 ### Regex Replace

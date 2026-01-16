@@ -4,6 +4,43 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.7.4] - 2026-01-11
+
+### Added
+- **Repair Umlauts Feature**: Automatically repair broken umlauts in Delphi source files
+  - `--repair-umlauts`: Scan and repair broken umlaut sequences (Ã¤ → ä, Ã¶ → ö, etc.)
+  - `--reference <file>`: Use a reference file instead of VCS to determine original encoding
+  - **VCS Integration**: Automatically uses Mercurial (hg) or Git to get the original file content
+  - **Smart Detection**: Detects broken UTF-8 bytes in Windows-1252 files
+  - **Detailed Output**: With `--verbose` shows all detected and repaired umlauts
+  - **Safe Mode**: Use `--dry-run` to preview changes without modifying files
+
+### Implementation
+- Created umlaut repair logic in `StrEditor.Repair.pas`
+- Added `TUmlautRepair.RepairUmlauts()` method for scanning and repairing
+- Added `TUmlautRepair.GetOriginalFromVCS()` for VCS integration (hg/git)
+- Added `TUmlautRepair.GetOriginalFromReference()` for reference file support
+- Extended `StrEditor.CommandLine.pas` with `ctRepairUmlauts` command type
+- Integrated repair feature into main program
+
+### Tests
+- All tests passing (DUnitX)
+- Manual testing with broken umlaut files
+
+### Examples
+```bash
+# Repair umlauts using VCS (Mercurial/Git)
+StrEditor.exe --file "broken.pas" --repair-umlauts --backup --verbose
+
+# Preview changes without modifying (dry-run)
+StrEditor.exe --file "broken.pas" --repair-umlauts --dry-run --verbose
+
+# Use reference file instead of VCS
+StrEditor.exe --file "broken.pas" --repair-umlauts --reference "original.pas" --verbose
+```
+
+---
+
 ## [1.7.3] - 2025-11-17
 
 ### Added

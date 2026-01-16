@@ -17,7 +17,7 @@ Type
   ///   Command-Typ
   /// </summary>
   {$ENDREGION}
-  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine, ctDocs );
+  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine, ctDocs, ctRepairUmlauts );
 
   {$REGION 'Documentation'}
   /// <summary>
@@ -87,6 +87,10 @@ Type
     DocsFile          : string;
     DocsListFiles     : Boolean;
     DocsOpenBrowser   : Boolean;
+    // Repair Umlauts
+    VCS               : string;       // hg, git, auto
+    Revision          : string;       // VCS-Revision (.^ für hg, HEAD~1 für git)
+    ReferencePath     : string;       // Alternative: Referenz-Datei statt VCS
   end;
 
   {$REGION 'Documentation'}
@@ -266,6 +270,27 @@ begin
 
       if HasParam( '--end-line' ) then
         aParams.EndLine := StrToIntDef( GetParamValue( '--end-line' ), 0 );
+
+      if aParams.FilePath = '' then
+        begin
+          ShowError( 'Missing required parameter: --file' );
+          Exit;
+        end;
+
+      Result := true;
+      Exit;
+    end;
+
+  if HasParam( '--repair-umlauts' ) then
+    begin
+      aParams.Command       := ctRepairUmlauts;
+      aParams.FilePath      := GetParamValue( '--file' );
+      aParams.VCS           := GetParamValue( '--vcs' );
+      aParams.Revision      := GetParamValue( '--revision' );
+      aParams.ReferencePath := GetParamValue( '--reference' );
+      aParams.Backup        := HasParam( '--backup' );
+      aParams.DryRun        := HasParam( '--dry-run' );
+      aParams.Verbose       := HasParam( '--verbose' );
 
       if aParams.FilePath = '' then
         begin
@@ -660,6 +685,8 @@ begin
   WriteLn( '  StrEditor.exe --file <file> --convert-encoding --to <utf8|windows1252> [--backup] [--dry-run]' );
   WriteLn( '  StrEditor.exe --file <file> --reinterpret-as <utf8|windows1252> [--backup] [--dry-run]' );
   WriteLn( '  StrEditor.exe --file <file> --show [--head <n>] [--tail <n>] [--line-numbers] [--raw]' );
+  WriteLn( '  StrEditor.exe --file <file> --repair-umlauts [--vcs hg|git] [--revision <rev>] [--dry-run]' );
+  WriteLn( '  StrEditor.exe --file <file> --repair-umlauts --reference <ref-file> [--dry-run]' );
   WriteLn( '  StrEditor.exe --docs [<file>] [--list] [--head <n>] [--tail <n>] [--line-numbers]' );
   WriteLn( '  StrEditor.exe --help' );
   WriteLn( '  StrEditor.exe --version' );
@@ -713,6 +740,10 @@ begin
   WriteLn( '  --docs [<file>]            Show documentation (default: README.md)' );
   WriteLn( '  --list                     List available documentation files (with --docs)' );
   WriteLn( '  --open-in-browser          Open documentation in browser (with --docs)' );
+  WriteLn( '  --repair-umlauts           Repair corrupted umlauts (9D bytes) using VCS' );
+  WriteLn( '  --vcs <hg|git>             Version control system (default: auto-detect)' );
+  WriteLn( '  --revision <rev>           VCS revision (default: .^ for hg, HEAD~1 for git)' );
+  WriteLn( '  --reference <file>         Reference file instead of VCS' );
   WriteLn( '  --verbose                  Show detailed information' );
   WriteLn( '  --help, -h                 Show this help' );
   WriteLn( '  --version, -v              Show version' );
@@ -747,12 +778,25 @@ begin
   WriteLn;
   WriteLn( '  # Replace all occurrences of multi-line block' );
   WriteLn( '  StrEditor.exe --file "test.pas" --old-str-base64 "BASE64_BLOCK" --new-str-base64 "BASE64_NEW" --multi-line --replace-all' );
+  WriteLn;
+  WriteLn( 'Repair Umlauts Examples:' );
+  WriteLn( '  # Auto-detect VCS (Mercurial or Git) and repair' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --repair-umlauts --verbose' );
+  WriteLn;
+  WriteLn( '  # Explicitly use Mercurial with specific revision' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --repair-umlauts --vcs hg --revision ".^" --verbose' );
+  WriteLn;
+  WriteLn( '  # Use Git with specific commit' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --repair-umlauts --vcs git --revision "HEAD~1" --verbose' );
+  WriteLn;
+  WriteLn( '  # Use reference file instead of VCS' );
+  WriteLn( '  StrEditor.exe --file "broken.pas" --repair-umlauts --reference "original.pas" --verbose' );
 end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.7.3' );
-  WriteLn( 'Build: 2025-11-17' );
+  WriteLn( 'StrEditor v1.7.4' );
+  WriteLn( 'Build: 2026-01-11' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
   WriteLn( 'New in v1.7:' );

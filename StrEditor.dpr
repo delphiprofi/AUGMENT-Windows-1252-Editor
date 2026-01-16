@@ -16,6 +16,7 @@ Uses
 , StrEditor.Config
 , StrEditor.BatchProcessor
 , StrEditor.Documentation
+, StrEditor.Repair
 ;
 
 procedure ProcessSingleFile( const aParams : TCommandLineParams );
@@ -513,6 +514,70 @@ begin
                if Pos( 'File not found', lResult.ErrorMessage ) > 0
                  then ExitCode := Ord( ecFileNotFound )
                  else ExitCode := Ord( ecEncodingError );
+             end;
+      end;
+
+    ctRepairUmlauts:
+      begin
+        if aParams.FilePath = '' then
+          begin
+            WriteLn( 'ERROR: --file parameter required for --repair-umlauts' );
+            ExitCode := Ord( ecParameterError );
+            Exit;
+          end;
+
+        if not FileExists( aParams.FilePath ) then
+          begin
+            WriteLn( 'ERROR: File not found: ' + aParams.FilePath );
+            ExitCode := Ord( ecFileNotFound );
+            Exit;
+          end;
+
+        Var lRepairResult : TRepairResult;
+
+        if aParams.ReferencePath <> '' then
+          begin
+            // Mit Referenz-Datei reparieren
+            lRepairResult := TUmlautRepair.RepairFromReference(
+              aParams.FilePath,
+              aParams.ReferencePath,
+              aParams.DryRun,
+              aParams.Verbose,
+              aParams.Backup
+            );
+          end
+        else begin
+               // Mit VCS reparieren
+               Var lVCS := TUmlautRepair.StringToVCS( aParams.VCS );
+
+               lRepairResult := TUmlautRepair.RepairFromVCS(
+                 aParams.FilePath,
+                 lVCS,
+                 '',  // Repo-Root auto-detect
+                 aParams.Revision,
+                 aParams.DryRun,
+                 aParams.Verbose,
+                 aParams.Backup
+               );
+             end;
+
+        if lRepairResult.Success then
+          begin
+            if lRepairResult.BytesRepaired > 0 then
+              begin
+                WriteLn( 'SUCCESS: Repaired ' + IntToStr( lRepairResult.BytesRepaired ) +
+                         ' umlaut(s) in ' + aParams.FilePath );
+
+                if lRepairResult.VCSUsed <> vcsAuto then
+                  WriteLn( 'VCS used: ' + TUmlautRepair.VCSToString( lRepairResult.VCSUsed ) );
+              end
+            else WriteLn( 'INFO: ' + lRepairResult.ErrorMessage );
+
+            ExitCode := Ord( ecSuccess );
+          end
+        else begin
+               WriteLn( 'ERROR: ' + lRepairResult.ErrorMessage );
+               ExitCode := Ord( ecOperationFailed );
              end;
       end;
 

@@ -1,7 +1,47 @@
 # StrEditor - Augment Agent Integration Rules
 
-**Version:** 1.7.2
-**Last Updated:** 2025-11-12
+**Version:** 1.7.4
+**Last Updated:** 2026-01-11
+
+---
+
+## 📌 THE 3 MOST IMPORTANT RULES
+
+1. **🚫 NEVER** use the internal `str-replace-editor` for `.pas` files → Broken umlauts!
+2. **✅ ALWAYS** use `StrEditor.exe` for Delphi files
+3. **🎯 FOR MULTIPLE OPERATIONS** → **Use JSON-Config!** (not multiple single calls)
+
+---
+
+## ⚠️ CRITICAL: JSON-Config is the PREFERRED Method!
+
+**Why JSON-Config instead of multiple single calls?**
+- **Efficiency:** File is read/written only ONCE (not N times)
+- **Atomicity:** All operations execute together or none
+- **Auto-Sorting:** Line operations are sorted high→low (prevents index shifting)
+- **No Escaping:** No PowerShell escaping issues with special characters
+
+### ❌ WRONG: Multiple Single Calls
+```bash
+# DON'T DO THIS! Inefficient!
+StrEditor.exe --file "MyUnit.pas" --replace-line 25 --with "Text1"
+StrEditor.exe --file "MyUnit.pas" --replace-line 30 --with "Text2"
+StrEditor.exe --file "MyUnit.pas" --delete-line 35
+```
+
+### ✅ CORRECT: One JSON-Config
+```json
+{
+  "operations": [
+    {"command": "replace-line", "file": "MyUnit.pas", "line": 25, "text": "Text1"},
+    {"command": "replace-line", "file": "MyUnit.pas", "line": 30, "text": "Text2"},
+    {"command": "delete-line", "file": "MyUnit.pas", "line": 35}
+  ]
+}
+```
+```bash
+StrEditor.exe --config operations.json --backup --verbose
+```
 
 ---
 
@@ -11,7 +51,7 @@ This document contains the rules for integrating StrEditor with Augment Agent. S
 
 ---
 
-## Basic Usage
+## Basic Usage (Single Operations Only)
 
 ```bash
 # Simple string replace
@@ -40,6 +80,9 @@ StrEditor.exe --file "path\to\file.pas" --replace-line 25 --with "  WriteLn('New
 
 # JSON Config with multiple operations (v1.7.1)
 StrEditor.exe --config "operations.json" --verbose
+
+# Repair broken umlauts (v1.7.4)
+StrEditor.exe --file "path\to\file.pas" --repair-umlauts --backup --verbose
 ```
 
 ---
@@ -107,6 +150,14 @@ StrEditor.exe --config "operations.json" --verbose
 - **Advantage**: Prevents index shifting issues when deleting/modifying multiple lines
 - **Supported Commands**: `delete-line`, `delete-lines`, `replace-line`
 - **Example**: See [DOC/INTEGRATION.md](INTEGRATION.md) for JSON config examples
+
+### 13. Repair Umlauts (v1.7.4)
+- Use `--repair-umlauts` to automatically repair broken umlauts in Delphi files
+- **VCS Integration**: Automatically uses Mercurial (hg) or Git to get original content
+- **Reference File**: Use `--reference <file>` to specify a known-good reference file
+- **Broken Sequences**: Detects and repairs Ã¤→ä, Ã¶→ö, Ã¼→ü, Ã→ß, Ã„→Ä, Ã–→Ö, Ãœ→Ü
+- **Use Case**: Repair files damaged by `str-replace-editor` saving as UTF-8 without BOM
+- **Example**: `StrEditor.exe --file "broken.pas" --repair-umlauts --backup --verbose`
 
 ---
 
