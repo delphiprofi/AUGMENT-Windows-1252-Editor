@@ -17,7 +17,7 @@ Type
   ///   Command-Typ
   /// </summary>
   {$ENDREGION}
-  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine, ctDocs, ctRepairUmlauts );
+  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine, ctReplaceLines, ctDocs, ctRepairUmlauts, ctMoveLines );
 
   {$REGION 'Documentation'}
   /// <summary>
@@ -91,6 +91,11 @@ Type
     VCS               : string;       // hg, git, auto
     Revision          : string;       // VCS-Revision (.^ für hg, HEAD~1 für git)
     ReferencePath     : string;       // Alternative: Referenz-Datei statt VCS
+    // Move Lines
+    FromFile          : string;       // Source file for move-lines
+    ToFile            : string;       // Target file for move-lines
+    // Config Options
+    DeleteConfigOnSuccess : Boolean;  // Delete JSON config file after successful execution
   end;
 
   {$REGION 'Documentation'}
@@ -128,9 +133,32 @@ Type
       {$ENDREGION}
       class procedure ShowError( const aMessage : string );
 
+    public
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   F5: Liefert alle Namen (Original + Aliase) für einen Parameter
+      /// </summary>
+      {$ENDREGION}
+      class function GetParamAliases( const aParamName : string ) : TArray<string>;
+
     strict private
       class function GetParamValue( const aParamName : string ) : string;
       class function HasParam( const aParamName : string ) : Boolean;
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   F4: Zeigt die Hilfe-Übersicht mit Kategorien
+      /// </summary>
+      {$ENDREGION}
+      class procedure ShowHelpOverview;
+      class procedure ShowHelpReplace;
+      class procedure ShowHelpInsert;
+      class procedure ShowHelpDelete;
+      class procedure ShowHelpShow;
+      class procedure ShowHelpEncoding;
+      class procedure ShowHelpConfig;
+      class procedure ShowHelpMove;
+      class procedure ShowHelpRepair;
+      class procedure ShowHelpAll;
   end;
 
 implementation
@@ -302,6 +330,64 @@ begin
       Exit;
     end;
 
+  if HasParam( '--move-lines' ) then
+    begin
+      aParams.Command   := ctMoveLines;
+      aParams.FromFile  := GetParamValue( '--from' );
+      aParams.ToFile    := GetParamValue( '--to' );
+      aParams.StartLine := StrToIntDef( GetParamValue( '--start-line' ), 0 );
+      aParams.EndLine   := StrToIntDef( GetParamValue( '--end-line' ), 0 );
+      aParams.Backup    := HasParam( '--backup' );
+      aParams.DryRun    := HasParam( '--dry-run' );
+      aParams.Diff      := HasParam( '--diff' );
+      aParams.Verbose   := HasParam( '--verbose' );
+
+      if HasParam( '--insert-after-line' ) then
+        aParams.InsertAfterLine := StrToIntDef( GetParamValue( '--insert-after-line' ), 0 );
+
+      if HasParam( '--insert-before-line' ) then
+        aParams.InsertBeforeLine := StrToIntDef( GetParamValue( '--insert-before-line' ), 0 );
+
+      if aParams.FromFile = '' then
+        begin
+          ShowError( 'Missing required parameter: --from' );
+          Exit;
+        end;
+
+      if aParams.ToFile = '' then
+        begin
+          ShowError( 'Missing required parameter: --to' );
+          Exit;
+        end;
+
+      if aParams.StartLine <= 0 then
+        begin
+          ShowError( 'Missing or invalid parameter: --start-line' );
+          Exit;
+        end;
+
+      if aParams.EndLine <= 0 then
+        begin
+          ShowError( 'Missing or invalid parameter: --end-line' );
+          Exit;
+        end;
+
+      if aParams.EndLine < aParams.StartLine then
+        begin
+          ShowError( 'Invalid line range: --end-line must be >= --start-line' );
+          Exit;
+        end;
+
+      if ( aParams.InsertAfterLine <= 0 ) and ( aParams.InsertBeforeLine <= 0 ) then
+        begin
+          ShowError( 'Missing required parameter: --insert-after-line or --insert-before-line' );
+          Exit;
+        end;
+
+      Result := true;
+      Exit;
+    end;
+
   if HasParam( '--docs' ) then
     begin
       aParams.Command         := ctDocs;
@@ -332,6 +418,10 @@ begin
 
   if aParams.ConfigFile <> '' then
     begin
+      aParams.DeleteConfigOnSuccess := HasParam( '--delete-config-on-success' );
+      aParams.Backup                := HasParam( '--backup' );
+      aParams.DryRun                := HasParam( '--dry-run' );
+      aParams.Verbose               := HasParam( '--verbose' );
       Result := true;
       Exit;
     end;
@@ -628,176 +718,454 @@ end;
 
 class function TCommandLineParser.GetParamValue( const aParamName : string ) : string;
 Var
-  i         : Integer;
+  i          : Integer;
   lNextParam : string;
+  lAliases   : TArray<string>;
+  lAlias     : string;
 begin
   Result := '';
+  lAliases := GetParamAliases( aParamName );
 
   for i := 1 to ParamCount do
     begin
-      if SameText( ParamStr( i ), aParamName ) then
+      for lAlias in lAliases do
         begin
-          if i < ParamCount then
+          if SameText( ParamStr( i ), lAlias ) then
             begin
-              lNextParam := ParamStr( i + 1 );
+              if i < ParamCount then
+                begin
+                  lNextParam := ParamStr( i + 1 );
 
-              if ( Length( lNextParam ) > 0 ) and ( lNextParam[ 1 ] <> '-' )
-                then Result := lNextParam;
+                  if ( Length( lNextParam ) > 0 ) and ( lNextParam[ 1 ] <> '-' )
+                    then Result := lNextParam;
+                end;
+
+              Exit;
             end;
-
-          Exit;
         end;
     end;
 end;
 
 class function TCommandLineParser.HasParam( const aParamName : string ) : Boolean;
 Var
-  i : Integer;
+  i        : Integer;
+  lAliases : TArray<string>;
+  lAlias   : string;
 begin
   Result := false;
+  lAliases := GetParamAliases( aParamName );
 
   for i := 1 to ParamCount do
     begin
-      if SameText( ParamStr( i ), aParamName ) then
+      for lAlias in lAliases do
         begin
-          Result := true;
-          Exit;
+          if SameText( ParamStr( i ), lAlias ) then
+            begin
+              Result := true;
+              Exit;
+            end;
         end;
     end;
 end;
 
-class procedure TCommandLineParser.ShowHelp;
+class function TCommandLineParser.GetParamAliases( const aParamName : string ) : TArray<string>;
 begin
-  WriteLn( 'StrEditor - String Replace Tool with Encoding Preservation' );
+  // F5: Definiert Kurzaliase für Parameter
+  // Format: Original → [Original, Alias1, Alias2, ...]
+
+  if SameText( aParamName, '--insert-before-line' ) then
+    Result := [ '--insert-before-line', '--ib' ]
+  else
+  if SameText( aParamName, '--insert-after-line' ) then
+    Result := [ '--insert-after-line', '--ia' ]
+  else
+  if SameText( aParamName, '--delete-line' ) then
+    Result := [ '--delete-line', '--dl' ]
+  else
+  if SameText( aParamName, '--replace-line' ) then
+    Result := [ '--replace-line', '--rl' ]
+  else
+  if SameText( aParamName, '--old-str-base64' ) then
+    Result := [ '--old-str-base64', '--ob64' ]
+  else
+  if SameText( aParamName, '--new-str-base64' ) then
+    Result := [ '--new-str-base64', '--nb64' ]
+  else
+    Result := [ aParamName ];
+end;
+
+class procedure TCommandLineParser.ShowHelp;
+Var
+  lCategory : string;
+begin
+  // F4: Kategorisierte Help - prüfe ob eine Kategorie angegeben wurde
+  lCategory := '';
+
+  if ParamCount >= 2 then
+    begin
+      // --help <category> oder -h <category>
+      if SameText( ParamStr( 1 ), '--help' ) or SameText( ParamStr( 1 ), '-h' ) then
+        lCategory := LowerCase( ParamStr( 2 ) );
+    end;
+
+  // Zeige kategoriespezifische Hilfe oder Übersicht
+  if lCategory = '' then
+    ShowHelpOverview
+  else
+  if ( lCategory = 'replace' ) or ( lCategory = 'str' ) then
+    ShowHelpReplace
+  else
+  if ( lCategory = 'insert' ) or ( lCategory = 'add' ) then
+    ShowHelpInsert
+  else
+  if ( lCategory = 'delete' ) or ( lCategory = 'del' ) then
+    ShowHelpDelete
+  else
+  if ( lCategory = 'show' ) or ( lCategory = 'cat' ) or ( lCategory = 'view' ) then
+    ShowHelpShow
+  else
+  if ( lCategory = 'encoding' ) or ( lCategory = 'enc' ) then
+    ShowHelpEncoding
+  else
+  if ( lCategory = 'config' ) or ( lCategory = 'json' ) then
+    ShowHelpConfig
+  else
+  if ( lCategory = 'move' ) then
+    ShowHelpMove
+  else
+  if ( lCategory = 'repair' ) or ( lCategory = 'umlaut' ) then
+    ShowHelpRepair
+  else
+  if ( lCategory = 'all' ) then
+    ShowHelpAll
+  else
+    begin
+      WriteLn( 'Unknown help category: ' + lCategory );
+      WriteLn;
+      ShowHelpOverview;
+    end;
+end;
+
+class procedure TCommandLineParser.ShowHelpOverview;
+begin
+  WriteLn( 'StrEditor - String Replace Tool with Encoding Preservation (v1.8.0)' );
   WriteLn;
-  WriteLn( 'Usage:' );
-  WriteLn( '  StrEditor.exe --file <file> --old-str <old> --new-str <new> [--start-line <n>] [--end-line <n>]' );
-  WriteLn( '  StrEditor.exe --file <file> --text <text> --insert-after-line <n>' );
-  WriteLn( '  StrEditor.exe --file <file> --text <text> --insert-before-line <n>' );
-  WriteLn( '  StrEditor.exe --file <file> --regex-pattern <pattern> --regex-replace <replacement> [-i] [-m]' );
-  WriteLn( '  StrEditor.exe --file <file> --regex-pattern <pattern> --regex-test [-i] [-m]' );
-  WriteLn( '  StrEditor.exe --file <file> --delete-line <n> [--backup] [--dry-run] [--diff]' );
-  WriteLn( '  StrEditor.exe --file <file> --delete-lines <n,m,k> [--backup] [--dry-run] [--diff]' );
-  WriteLn( '  StrEditor.exe --file <file> --delete-lines --start-line <n> --end-line <m> [--backup] [--dry-run]' );
-  WriteLn( '  StrEditor.exe --file <file> --replace-line <n> --with <text> [--backup] [--dry-run] [--diff]' );
-  WriteLn( '  StrEditor.exe --file <file> --replace-line <n> --with-base64 <base64> [--backup] [--dry-run]' );
-  WriteLn( '  StrEditor.exe --file <file> --detect-encoding' );
-  WriteLn( '  StrEditor.exe --file <file> --convert-encoding --to <utf8|windows1252> [--backup] [--dry-run]' );
-  WriteLn( '  StrEditor.exe --file <file> --reinterpret-as <utf8|windows1252> [--backup] [--dry-run]' );
-  WriteLn( '  StrEditor.exe --file <file> --show [--head <n>] [--tail <n>] [--line-numbers] [--raw]' );
-  WriteLn( '  StrEditor.exe --file <file> --repair-umlauts [--vcs hg|git] [--revision <rev>] [--dry-run]' );
-  WriteLn( '  StrEditor.exe --file <file> --repair-umlauts --reference <ref-file> [--dry-run]' );
-  WriteLn( '  StrEditor.exe --docs [<file>] [--list] [--head <n>] [--tail <n>] [--line-numbers]' );
-  WriteLn( '  StrEditor.exe --help' );
-  WriteLn( '  StrEditor.exe --version' );
+  WriteLn( 'Quick Start:' );
+  WriteLn( '  StrEditor.exe --file <file> --old-str <old> --new-str <new>     # Replace string' );
+  WriteLn( '  StrEditor.exe --file <file> --text <text> --insert-after-line <n>  # Insert line' );
+  WriteLn( '  StrEditor.exe --file <file> --delete-line <n>                   # Delete line' );
+  WriteLn( '  StrEditor.exe --file <file> --show --line-numbers               # Show file' );
+  WriteLn( '  StrEditor.exe --config <file.json>                              # Use JSON config' );
   WriteLn;
-  WriteLn( 'Parameters:' );
-  WriteLn( '  --file <file>              File to process' );
-  WriteLn( '  --files <pattern>          File pattern for batch processing (e.g. "*.pas")' );
-  WriteLn( '  --old-str <old>            String to replace' );
-  WriteLn( '  --new-str <new>            Replacement string' );
-  WriteLn( '  --old-str-base64 <base64>  String to replace (Base64-encoded)' );
-  WriteLn( '  --new-str-base64 <base64>  Replacement string (Base64-encoded)' );
-  WriteLn( '  --start-line <n>           Start line for replacement (optional)' );
-  WriteLn( '  --end-line <n>             End line for replacement (optional)' );
-  WriteLn( '  --text <text>              Text to insert' );
-  WriteLn( '  --text-base64 <base64>     Text to insert (Base64-encoded)' );
-  WriteLn( '  --insert-after-line <n>    Line number after which to insert' );
-  WriteLn( '  --insert-before-line <n>   Line number before which to insert' );
-  WriteLn( '  --regex-pattern <pattern>  Regular expression pattern' );
-  WriteLn( '  --regex-replace <repl>     Replacement string (supports $1, $2, etc.)' );
-  WriteLn( '  --regex-test               Test regex without making changes' );
-  WriteLn( '  --condition-pattern <pat>  Only replace if line matches this regex pattern' );
-  WriteLn( '  -i, --case-insensitive     Case-insensitive regex matching' );
-  WriteLn( '  -m, --multiline            Multi-line regex matching' );
-  WriteLn( '  --multi-line               Multi-line string replace (search across line boundaries)' );
-  WriteLn( '  --replace-all              Replace all occurrences (default: only first)' );
-  WriteLn( '  --backup                   Create backup file before changes' );
-  WriteLn( '  --dry-run                  Show changes without modifying file' );
-  WriteLn( '  --diff                     Show differences between original and modified' );
-  WriteLn( '  --stats                    Show statistics after operation' );
-  WriteLn( '  --case <type>              Case conversion: upper, lower, title' );
-  WriteLn( '  --indent <n>               Indent (+n) or outdent (-n) lines' );
-  WriteLn( '  --delete-line <n>          Delete a single line' );
-  WriteLn( '  --delete-lines <n,m,k>     Delete multiple lines (comma-separated)' );
-  WriteLn( '  --delete-lines --start-line <n> --end-line <m>  Delete line range' );
-  WriteLn( '  --replace-line <n>         Replace a complete line' );
-  WriteLn( '  --with <text>              Replacement text for --replace-line' );
-  WriteLn( '  --with-base64 <base64>     Replacement text (Base64-encoded)' );
-  WriteLn( '  --undo                     Restore backup file (requires --file)' );
-  WriteLn( '  --config <file>            Load parameters from JSON config file' );
-  WriteLn( '  --detect-encoding          Detect and show file encoding (requires --file)' );
-  WriteLn( '  --convert-encoding         Convert file encoding (requires --file and --to)' );
-  WriteLn( '  --to <encoding>            Target encoding: utf8 or windows1252' );
-  WriteLn( '  --reinterpret-as <enc>     Reinterpret file as encoding (repairs broken encodings)' );
-  WriteLn( '  --show, --cat              Show file content (encoding-aware)' );
-  WriteLn( '  --head <n>                 Show first N lines (aliases: --first, --total-count)' );
-  WriteLn( '  --tail <n>                 Show last N lines (alias: --last)' );
-  WriteLn( '  --start-line <n>           Start line for show (with --end-line)' );
-  WriteLn( '  --end-line <n>             End line for show (with --start-line)' );
-  WriteLn( '  --line-numbers             Show line numbers' );
-  WriteLn( '  --raw                      Show as single string (no line breaks)' );
-  WriteLn( '  --docs [<file>]            Show documentation (default: README.md)' );
-  WriteLn( '  --list                     List available documentation files (with --docs)' );
-  WriteLn( '  --open-in-browser          Open documentation in browser (with --docs)' );
-  WriteLn( '  --repair-umlauts           Repair corrupted umlauts (9D bytes) using VCS' );
-  WriteLn( '  --vcs <hg|git>             Version control system (default: auto-detect)' );
-  WriteLn( '  --revision <rev>           VCS revision (default: .^ for hg, HEAD~1 for git)' );
-  WriteLn( '  --reference <file>         Reference file instead of VCS' );
-  WriteLn( '  --verbose                  Show detailed information' );
-  WriteLn( '  --help, -h                 Show this help' );
-  WriteLn( '  --version, -v              Show version' );
+  WriteLn( 'Help Categories (use: --help <category>):' );
+  WriteLn( '  replace   String and regex replacement operations' );
+  WriteLn( '  insert    Insert text before/after lines' );
+  WriteLn( '  delete    Delete lines (single, multiple, range)' );
+  WriteLn( '  show      Display file content' );
+  WriteLn( '  encoding  Detect, convert, reinterpret encodings' );
+  WriteLn( '  config    JSON config file usage' );
+  WriteLn( '  move      Move lines between files' );
+  WriteLn( '  repair    Repair corrupted umlauts' );
+  WriteLn( '  all       Show complete help' );
+  WriteLn;
+  WriteLn( 'Parameter Aliases (v1.8):' );
+  WriteLn( '  --ib   = --insert-before-line' );
+  WriteLn( '  --ia   = --insert-after-line' );
+  WriteLn( '  --dl   = --delete-line' );
+  WriteLn( '  --rl   = --replace-line' );
+  WriteLn( '  --ob64 = --old-str-base64' );
+  WriteLn( '  --nb64 = --new-str-base64' );
+  WriteLn;
+  WriteLn( 'Common Options:' );
+  WriteLn( '  --backup      Create backup file (.bak)' );
+  WriteLn( '  --dry-run     Preview changes without modifying' );
+  WriteLn( '  --diff        Show differences' );
+  WriteLn( '  --verbose     Detailed output' );
+  WriteLn;
+  WriteLn( 'Examples:' );
+  WriteLn( '  StrEditor.exe --help replace    # Show replace help' );
+  WriteLn( '  StrEditor.exe --help config     # Show JSON config help' );
+  WriteLn( '  StrEditor.exe --docs            # Show full documentation' );
+end;
+
+class procedure TCommandLineParser.ShowHelpReplace;
+begin
+  WriteLn( 'StrEditor - REPLACE Operations' );
+  WriteLn( '================================' );
+  WriteLn;
+  WriteLn( 'String Replace:' );
+  WriteLn( '  --file <file> --old-str <old> --new-str <new>' );
+  WriteLn( '  --file <file> --old-str-base64 <b64> --new-str-base64 <b64>  # Base64 encoded' );
+  WriteLn( '  --file <file> --replace-line <n> --with <text>              # Replace whole line' );
+  WriteLn( '  --file <file> --replace-line <n> --with-base64 <b64>        # Base64 encoded' );
+  WriteLn;
+  WriteLn( 'Options:' );
+  WriteLn( '  --start-line <n>        Limit to lines from n' );
+  WriteLn( '  --end-line <n>          Limit to lines up to n' );
+  WriteLn( '  --replace-all           Replace ALL occurrences (default: first only)' );
+  WriteLn( '  --multi-line            Search across line boundaries' );
+  WriteLn( '  --condition-pattern <p> Only replace if line matches pattern' );
+  WriteLn;
+  WriteLn( 'Regex Replace:' );
+  WriteLn( '  --file <file> --regex-pattern <pattern> --regex-replace <replacement>' );
+  WriteLn( '  -i, --case-insensitive  Case-insensitive matching' );
+  WriteLn( '  -m, --multiline         Multi-line mode (^ and $ match line boundaries)' );
+  WriteLn( '  --regex-test            Test pattern without changes' );
   WriteLn;
   WriteLn( 'Examples:' );
   WriteLn( '  StrEditor.exe --file "test.pas" --old-str "nil" --new-str "NIL"' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --old-str-base64 "ICAgICB7JElGREVGIFBSRVVOSUNPREV9" --new-str-base64 "ICAgICB7JElGREVGIFVOSUNPREV9"' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --text "// Comment" --insert-after-line 10' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --text "// Comment" --insert-before-line 10' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --text-base64 "eyRJRkRFRiBERUJVR30=" --insert-after-line 10' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --replace-line 25 --with "  NewCode;" --backup' );
   WriteLn( '  StrEditor.exe --file "test.pas" --regex-pattern "f(\w+)" --regex-replace "l$1" -i' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --regex-pattern "procedure\s+(\w+)" --regex-test' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --detect-encoding' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --convert-encoding --to windows1252 --backup' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --reinterpret-as utf8 --backup' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --show --head 10 --line-numbers' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --show --tail 5' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --show --start-line 10 --end-line 20' );
-  WriteLn( '  StrEditor.exe --docs' );
-  WriteLn( '  StrEditor.exe --docs CHANGELOG.md --head 20' );
-  WriteLn( '  StrEditor.exe --docs --list' );
-  WriteLn( '  StrEditor.exe --docs AUGMENT-INTEGRATION.md --open-in-browser' );
+  WriteLn;
+  WriteLn( 'Aliases: --rl = --replace-line, --ob64 = --old-str-base64, --nb64 = --new-str-base64' );
+end;
+
+class procedure TCommandLineParser.ShowHelpInsert;
+begin
+  WriteLn( 'StrEditor - INSERT Operations' );
+  WriteLn( '==============================' );
+  WriteLn;
+  WriteLn( 'Usage:' );
+  WriteLn( '  --file <file> --text <text> --insert-after-line <n>' );
+  WriteLn( '  --file <file> --text <text> --insert-before-line <n>' );
+  WriteLn( '  --file <file> --text-base64 <b64> --insert-after-line <n>   # Base64 encoded' );
+  WriteLn;
+  WriteLn( 'JSON Config with text-lines (v1.8):' );
+  WriteLn( '  {' );
+  WriteLn( '    "file": "test.pas",' );
+  WriteLn( '    "command": "insert-after",' );
+  WriteLn( '    "insert-after-line": 10,' );
+  WriteLn( '    "text-lines": ["  // Line 1", "  // Line 2", "  // Line 3"]' );
+  WriteLn( '  }' );
+  WriteLn;
+  WriteLn( 'Examples:' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --text "// Comment" --insert-after-line 10' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --text "// Header" --insert-before-line 1 --backup' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --text-base64 "eyRJRkRFRn0=" --ia 10' );
+  WriteLn;
+  WriteLn( 'Aliases: --ia = --insert-after-line, --ib = --insert-before-line' );
+end;
+
+class procedure TCommandLineParser.ShowHelpDelete;
+begin
+  WriteLn( 'StrEditor - DELETE Operations' );
+  WriteLn( '==============================' );
+  WriteLn;
+  WriteLn( 'Single Line:' );
+  WriteLn( '  --file <file> --delete-line <n>' );
+  WriteLn;
+  WriteLn( 'Multiple Lines:' );
+  WriteLn( '  --file <file> --delete-lines <n,m,k>                     # Comma-separated' );
+  WriteLn( '  --file <file> --delete-lines --start-line <n> --end-line <m>  # Range' );
+  WriteLn;
+  WriteLn( 'Options:' );
+  WriteLn( '  --backup     Create backup before deletion' );
+  WriteLn( '  --dry-run    Preview without deleting' );
+  WriteLn( '  --diff       Show what would be deleted' );
+  WriteLn;
+  WriteLn( 'Examples:' );
   WriteLn( '  StrEditor.exe --file "test.pas" --delete-line 25 --backup' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --delete-lines "1,3,5" --backup' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --delete-lines "1,3,5" --dry-run' );
   WriteLn( '  StrEditor.exe --file "test.pas" --delete-lines --start-line 10 --end-line 20 --backup' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --replace-line 25 --with "  WriteLn(''New'');" --backup' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --replace-line 25 --with-base64 "ICBXcml0ZUxuKCdOZXcnKTs=" --backup' );
   WriteLn;
-  WriteLn( 'Multi-Line Examples:' );
-  WriteLn( '  # Replace 5 lines with 1 line (IFDEF block removal)' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --old-str-base64 "BASE64_5_LINES" --new-str-base64 "BASE64_1_LINE" --multi-line --backup' );
+  WriteLn( 'Alias: --dl = --delete-line' );
+end;
+
+class procedure TCommandLineParser.ShowHelpShow;
+begin
+  WriteLn( 'StrEditor - SHOW/VIEW Operations' );
+  WriteLn( '=================================' );
   WriteLn;
-  WriteLn( '  # Replace all occurrences of multi-line block' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --old-str-base64 "BASE64_BLOCK" --new-str-base64 "BASE64_NEW" --multi-line --replace-all' );
+  WriteLn( 'Usage:' );
+  WriteLn( '  --file <file> --show' );
+  WriteLn( '  --file <file> --cat           # Alias for --show' );
   WriteLn;
-  WriteLn( 'Repair Umlauts Examples:' );
-  WriteLn( '  # Auto-detect VCS (Mercurial or Git) and repair' );
+  WriteLn( 'Options:' );
+  WriteLn( '  --head <n>        Show first N lines' );
+  WriteLn( '  --tail <n>        Show last N lines' );
+  WriteLn( '  --start-line <n>  Show from line n' );
+  WriteLn( '  --end-line <n>    Show until line n' );
+  WriteLn( '  --line-numbers    Show line numbers' );
+  WriteLn( '  --raw             Output as single string' );
+  WriteLn;
+  WriteLn( 'Documentation:' );
+  WriteLn( '  --docs                 Show README.md' );
+  WriteLn( '  --docs <file>          Show specific doc file' );
+  WriteLn( '  --docs --list          List available docs' );
+  WriteLn( '  --docs --open-in-browser  Open in browser' );
+  WriteLn;
+  WriteLn( 'Examples:' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --show --head 10 --line-numbers' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --show --start-line 50 --end-line 60' );
+  WriteLn( '  StrEditor.exe --docs CHANGELOG.md --tail 20' );
+end;
+
+class procedure TCommandLineParser.ShowHelpEncoding;
+begin
+  WriteLn( 'StrEditor - ENCODING Operations' );
+  WriteLn( '================================' );
+  WriteLn;
+  WriteLn( 'Detect Encoding:' );
+  WriteLn( '  --file <file> --detect-encoding' );
+  WriteLn;
+  WriteLn( 'Convert Encoding:' );
+  WriteLn( '  --file <file> --convert-encoding --to <utf8|windows1252>' );
+  WriteLn;
+  WriteLn( 'Reinterpret (Repair Broken):' );
+  WriteLn( '  --file <file> --reinterpret-as <utf8|windows1252>' );
+  WriteLn( '  # Use when UTF-8 bytes were saved as Windows-1252 or vice versa' );
+  WriteLn;
+  WriteLn( 'Examples:' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --detect-encoding' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --convert-encoding --to utf8 --backup' );
+  WriteLn( '  StrEditor.exe --file "broken.pas" --reinterpret-as utf8 --backup' );
+end;
+
+class procedure TCommandLineParser.ShowHelpConfig;
+begin
+  WriteLn( 'StrEditor - JSON CONFIG Operations' );
+  WriteLn( '===================================' );
+  WriteLn;
+  WriteLn( 'Usage:' );
+  WriteLn( '  --config <file.json>' );
+  WriteLn( '  --config <file.json> --delete-config-on-success  # Delete JSON after success' );
+  WriteLn;
+  WriteLn( 'Single Operation JSON:' );
+  WriteLn( '  {' );
+  WriteLn( '    "file": "test.pas",' );
+  WriteLn( '    "old-str": "nil",' );
+  WriteLn( '    "new-str": "NIL"' );
+  WriteLn( '  }' );
+  WriteLn;
+  WriteLn( 'Multiple Operations JSON:' );
+  WriteLn( '  {' );
+  WriteLn( '    "operations": [' );
+  WriteLn( '      { "file": "a.pas", "command": "delete-line", "delete-line": 25 },' );
+  WriteLn( '      { "file": "b.pas", "command": "insert-after", "insert-after-line": 10,' );
+  WriteLn( '        "text-lines": ["Line 1", "Line 2"] }' );
+  WriteLn( '    ]' );
+  WriteLn( '  }' );
+  WriteLn;
+  WriteLn( 'text-lines Array (v1.8):' );
+  WriteLn( '  Instead of: "text": "Line1\r\nLine2"  (problematic)' );
+  WriteLn( '  Use:        "text-lines": ["Line1", "Line2"]  (recommended)' );
+  WriteLn;
+  WriteLn( 'Available Commands:' );
+  WriteLn( '  str-replace, insert, insert-after, insert-before, regex-replace,' );
+  WriteLn( '  delete-line, delete-lines, replace-line, replace-lines, move-lines' );
+  WriteLn;
+  WriteLn( 'Example:' );
+  WriteLn( '  StrEditor.exe --config "ops.json" --delete-config-on-success' );
+end;
+
+class procedure TCommandLineParser.ShowHelpMove;
+begin
+  WriteLn( 'StrEditor - MOVE LINES Operations' );
+  WriteLn( '==================================' );
+  WriteLn;
+  WriteLn( 'Move lines from one file to another:' );
+  WriteLn( '  --move-lines --from <src> --to <dst> --start-line <n> --end-line <m> --insert-after-line <l>' );
+  WriteLn( '  --move-lines --from <src> --to <dst> --start-line <n> --end-line <m> --insert-before-line <l>' );
+  WriteLn;
+  WriteLn( 'Options:' );
+  WriteLn( '  --backup     Create backup of both files' );
+  WriteLn( '  --dry-run    Preview without moving' );
+  WriteLn;
+  WriteLn( 'Examples:' );
+  WriteLn( '  # Move lines 50-100 from UnitA.pas after line 200 in UnitB.pas' );
+  WriteLn( '  StrEditor.exe --move-lines --from "UnitA.pas" --to "UnitB.pas" \\' );
+  WriteLn( '    --start-line 50 --end-line 100 --insert-after-line 200' );
+  WriteLn;
+  WriteLn( '  # Move lines 10-20 before line 50' );
+  WriteLn( '  StrEditor.exe --move-lines --from "Src.pas" --to "Dst.pas" \\' );
+  WriteLn( '    --start-line 10 --end-line 20 --insert-before-line 50 --backup' );
+end;
+
+class procedure TCommandLineParser.ShowHelpRepair;
+begin
+  WriteLn( 'StrEditor - REPAIR UMLAUTS Operations' );
+  WriteLn( '======================================' );
+  WriteLn;
+  WriteLn( 'Repair corrupted umlauts (9D bytes) using version control:' );
+  WriteLn( '  --file <file> --repair-umlauts [--vcs hg|git] [--revision <rev>]' );
+  WriteLn;
+  WriteLn( 'Or using a reference file:' );
+  WriteLn( '  --file <file> --repair-umlauts --reference <good-file>' );
+  WriteLn;
+  WriteLn( 'Options:' );
+  WriteLn( '  --vcs <hg|git>     Version control (default: auto-detect)' );
+  WriteLn( '  --revision <rev>   VCS revision (default: .^ for hg, HEAD~1 for git)' );
+  WriteLn( '  --reference <f>    Use reference file instead of VCS' );
+  WriteLn( '  --verbose          Show detailed repair information' );
+  WriteLn( '  --dry-run          Preview without repairing' );
+  WriteLn;
+  WriteLn( 'Examples:' );
   WriteLn( '  StrEditor.exe --file "test.pas" --repair-umlauts --verbose' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --repair-umlauts --vcs hg --revision ".^"' );
+  WriteLn( '  StrEditor.exe --file "broken.pas" --repair-umlauts --reference "original.pas"' );
+end;
+
+class procedure TCommandLineParser.ShowHelpAll;
+begin
+  ShowHelpOverview;
   WriteLn;
-  WriteLn( '  # Explicitly use Mercurial with specific revision' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --repair-umlauts --vcs hg --revision ".^" --verbose' );
+  WriteLn( String.Create( '=', 60 ) );
   WriteLn;
-  WriteLn( '  # Use Git with specific commit' );
-  WriteLn( '  StrEditor.exe --file "test.pas" --repair-umlauts --vcs git --revision "HEAD~1" --verbose' );
+  ShowHelpReplace;
   WriteLn;
-  WriteLn( '  # Use reference file instead of VCS' );
-  WriteLn( '  StrEditor.exe --file "broken.pas" --repair-umlauts --reference "original.pas" --verbose' );
+  WriteLn( String.Create( '=', 60 ) );
+  WriteLn;
+  ShowHelpInsert;
+  WriteLn;
+  WriteLn( String.Create( '=', 60 ) );
+  WriteLn;
+  ShowHelpDelete;
+  WriteLn;
+  WriteLn( String.Create( '=', 60 ) );
+  WriteLn;
+  ShowHelpShow;
+  WriteLn;
+  WriteLn( String.Create( '=', 60 ) );
+  WriteLn;
+  ShowHelpEncoding;
+  WriteLn;
+  WriteLn( String.Create( '=', 60 ) );
+  WriteLn;
+  ShowHelpConfig;
+  WriteLn;
+  WriteLn( String.Create( '=', 60 ) );
+  WriteLn;
+  ShowHelpMove;
+  WriteLn;
+  WriteLn( String.Create( '=', 60 ) );
+  WriteLn;
+  ShowHelpRepair;
 end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.7.4' );
-  WriteLn( 'Build: 2026-01-11' );
+  WriteLn( 'StrEditor v1.8.0' );
+  WriteLn( 'Build: 2026-01-23' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
+  WriteLn;
+  WriteLn( 'New in v1.8.0:' );
+  WriteLn( '  - text-lines Array: Multi-line JSON without escaping (use: "text-lines": ["Line1", "Line2"])' );
+  WriteLn( '  - replace-lines Command: Replace line ranges in JSON config' );
+  WriteLn( '  - Warning: Detects literal \r\n in parameters and shows warning' );
+  WriteLn( '  - Categorized Help: Use --help <category> (replace, insert, delete, show, encoding, config, move, repair)' );
+  WriteLn( '  - Parameter Aliases: --ib, --ia, --dl, --rl, --ob64, --nb64' );
+  WriteLn;
+  WriteLn( 'Previous versions:' );
+  WriteLn( '  v1.7.7: Bugfix --delete-config-on-success respects --dry-run' );
+  WriteLn( '  v1.7.6:' );
+  WriteLn( '  - Delete Config on Success (--delete-config-on-success)' );
+  WriteLn( '  - Automatically deletes JSON config file after successful execution' );
+  WriteLn;
+  WriteLn( 'New in v1.7.5:' );
+  WriteLn( '  - Move Lines (--move-lines --from <src> --to <dst> --start-line <n> --end-line <m>)' );
+  WriteLn( '  - Move code between files with encoding preservation' );
+  WriteLn( '  - Supports --insert-after-line and --insert-before-line' );
+  WriteLn( '  - JSON-Config support for move-lines' );
   WriteLn;
   WriteLn( 'New in v1.7:' );
   WriteLn( '  - Delete Line (--delete-line <n>)' );

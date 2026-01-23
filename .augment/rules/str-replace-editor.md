@@ -7,7 +7,33 @@ description: "Example description"
 
 1. **🚫 NIEMALS** den internen `str-replace-editor` für `.pas` Dateien verwenden → Kaputte Umlaute!
 2. **✅ IMMER** `StrEditor.exe` verwenden für Delphi-Dateien
-3. **🎯 BEI MEHREREN OPERATIONEN** → **JSON-Config verwenden!** (nicht mehrere Einzelaufrufe)
+3. **🎯 BEI MEHREREN OPERATIONEN oder MEHRZEILIGEM TEXT** → **JSON-Config mit `text-lines` verwenden!**
+
+---
+
+## ✅ Entscheidungs-Checkliste: Direkt oder JSON?
+
+**DIREKT aufrufen, wenn ALLE zutreffen:**
+- [ ] Nur 1-2 einfache Operationen
+- [ ] Keine Sonderzeichen (`$`, `` ` ``, `"`, `@`, `|`, `&`)
+- [ ] Kein mehrzeiliger Text
+- [ ] Keine Umlaute im einzufügenden Text
+
+**JSON-Config verwenden, wenn EINES zutrifft:**
+- [x] Mehrzeiliger Text → Nutze `"text-lines": ["Zeile 1", "Zeile 2"]`
+- [x] 3+ Operationen auf gleicher Datei
+- [x] Sonderzeichen im Text (`$`, `` ` ``, `"` etc.)
+- [x] Komplexe Ersetzungen
+- [x] Atomare Batch-Operationen gewünscht
+
+**Beispiel - Wann JSON nutzen:**
+```
+// Mehrzeilig? → JSON mit text-lines
+{
+  "file": "test.pas", "command": "insert-after", "insert-after-line": 10,
+  "text-lines": ["  // Kommentar", "  WriteLn('Test');", "  Inc(i);"]
+}
+```
 
 ---
 
@@ -35,7 +61,7 @@ StrEditor.exe --file "DATEINAME.pas" --reinterpret-as utf8 --backup --verbose
 
 ## 🔧 StrEditor Integration für Delphi-Dateien
 
-**Version:** 1.7.4 (2026-01-11)
+**Version:** 1.8.0 (2026-01-23)
 
 ### Wichtig: Verwende IMMER StrEditor statt str-replace-editor
 
@@ -110,6 +136,64 @@ StrEditor.exe --file "MyUnit.pas" --delete-line 35
 ```
 ```bash
 StrEditor.exe --config operations.json --backup --verbose
+```
+
+---
+
+## 🆕 v1.8.0 Neue Features
+
+### 1. `text-lines` Array (EMPFOHLEN für mehrzeiligen Text!)
+
+**Problem:** `\r\n` in JSON wird oft falsch interpretiert
+**Lösung:** Nutze `"text-lines"` Array statt `"text"` String
+
+```json
+{
+  "file": "test.pas",
+  "command": "insert-after",
+  "insert-after-line": 10,
+  "text-lines": [
+    "  {$IFDEF DEBUG}",
+    "  WriteLn('Debug: ' + IntToStr(i));",
+    "  {$ENDIF}"
+  ]
+}
+```
+
+### 2. Parameter-Aliase (Kurzformen)
+
+| Kurz | Lang |
+|------|------|
+| `--ib` | `--insert-before-line` |
+| `--ia` | `--insert-after-line` |
+| `--dl` | `--delete-line` |
+| `--rl` | `--replace-line` |
+| `--ob64` | `--old-str-base64` |
+| `--nb64` | `--new-str-base64` |
+
+**Beispiel:**
+```bash
+StrEditor.exe --file "test.pas" --ia 10 --text "// Kommentar"
+```
+
+### 3. Kategorisierte Hilfe
+
+Statt 100+ Zeilen Help → kompakte Übersicht mit Kategorien:
+```bash
+StrEditor.exe --help              # Übersicht
+StrEditor.exe --help config       # JSON-Config Hilfe
+StrEditor.exe --help insert       # Insert-Operationen
+StrEditor.exe --help replace      # Replace-Operationen
+StrEditor.exe --help all          # Komplette Hilfe
+```
+
+### 4. Warning bei `\r\n` Literal
+
+Wenn du aus Versehen `\r\n` als 4 Zeichen (Backslash-r-Backslash-n) verwendest statt echtem CRLF, erscheint eine Warnung:
+```
+WARNING: Detected literal \r\n (4 characters) in parameter: text
+  This is probably NOT what you want!
+  For real line breaks, use JSON with "text-lines" array or base64 encoding.
 ```
 
 ---
@@ -377,6 +461,58 @@ StrEditor.exe --file "MyUnit.pas" --repair-umlauts --reference "original.pas" --
 - Erkennt und repariert: Ã¤→ä, Ã¶→ö, Ã¼→ü, Ã→ß, Ã„→Ä, Ã–→Ö, Ãœ→Ü
 - VCS-Integration: Verwendet automatisch Mercurial (hg) oder Git
 - **Anwendungsfall:** Datei wurde versehentlich mit `str-replace-editor` bearbeitet
+
+**Move Lines (Zeilen zwischen Dateien verschieben):** 🆕 **[NEU in v1.7.5]**
+```
+# Zeilen 50-100 von UnitA.pas nach UnitB.pas verschieben (nach Zeile 200)
+StrEditor.exe --move-lines --from "UnitA.pas" --to "UnitB.pas" --start-line 50 --end-line 100 --insert-after-line 200
+
+# Zeilen verschieben mit Backup
+StrEditor.exe --move-lines --from "UnitA.pas" --to "UnitB.pas" --start-line 10 --end-line 20 --insert-before-line 50 --backup
+
+# Dry-Run (Test ohne Änderung)
+StrEditor.exe --move-lines --from "UnitA.pas" --to "UnitB.pas" --start-line 10 --end-line 20 --insert-after-line 100 --dry-run
+```
+- Verschiebt Zeilen von einer Datei in eine andere
+- Erhält das Encoding beider Dateien (Source und Target)
+- `--insert-after-line <n>`: Fügt nach Zeile n ein
+- `--insert-before-line <n>`: Fügt vor Zeile n ein
+- **Anwendungsfall:** Refactoring, Code zwischen Units verschieben
+
+**Move Lines mit JSON-Config:** 🆕 **[NEU in v1.7.5]**
+```json
+{
+  "operations": [
+    {
+      "command": "move-lines",
+      "from-file": "UnitA.pas",
+      "start-line": 50,
+      "end-line": 100,
+      "to-file": "UnitB.pas",
+      "insert-after-line": 200
+    }
+  ]
+}
+```
+```bash
+StrEditor.exe --config operations.json --backup --verbose
+```
+
+**Delete Config on Success (Config nach Erfolg löschen):** 🆕 **[NEU in v1.7.6]**
+```bash
+# JSON-Config ausführen und bei Erfolg automatisch löschen
+StrEditor.exe --config operations.json --delete-config-on-success --verbose
+
+# Mit Backup
+StrEditor.exe --config operations.json --delete-config-on-success --backup
+
+# Dry-Run löscht Config NICHT (keine echten Änderungen)
+StrEditor.exe --config operations.json --delete-config-on-success --dry-run
+# Output: "Dry-run mode: Config file NOT deleted"
+```
+- **Anwendungsfall:** Automatisierte Skripte, CI/CD Pipelines
+- **Wichtig:** Config wird NUR gelöscht wenn alle Operationen erfolgreich waren (ExitCode = 0)
+- **Dry-Run:** Bei `--dry-run` wird die Config NICHT gelöscht (Bugfix in v1.7.7)
 
 ---
 

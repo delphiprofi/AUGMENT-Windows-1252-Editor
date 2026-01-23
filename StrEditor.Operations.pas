@@ -111,6 +111,18 @@ Type
       {$ENDREGION}
       class function ReplaceLine( const aFilePath : string; const aLineNumber : Integer; const aNewText : string; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false; const aTextIsBase64 : Boolean = false ) : TOperationResult;
 
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Verschiebt Zeilen von einer Datei in eine andere
+      ///   aFromFile: Quelldatei
+      ///   aToFile: Zieldatei (muss existieren)
+      ///   aStartLine/aEndLine: Zeilenbereich in der Quelldatei
+      ///   aInsertAfterLine: Zeile in Zieldatei nach der eingefügt wird (0 = am Anfang)
+      ///   aInsertBeforeLine: Zeile in Zieldatei vor der eingefügt wird
+      /// </summary>
+      {$ENDREGION}
+      class function MoveLines( const aFromFile : string; const aToFile : string; const aStartLine : Integer; const aEndLine : Integer; const aInsertAfterLine : Integer; const aInsertBeforeLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+
     strict private
       class function FindAndReplace( const aLines : TStringList; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer; const aVerbose : Boolean = false ) : Boolean;
 
@@ -1275,6 +1287,199 @@ begin
     Result.Success := true;
   finally
     lLines.Free;
+  end;
+end;
+
+class function TStringOperations.MoveLines( const aFromFile : string; const aToFile : string; const aStartLine : Integer; const aEndLine : Integer; const aInsertAfterLine : Integer; const aInsertBeforeLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+Var
+  lFromLines       : TStringList;
+  lToLines         : TStringList;
+  lFromOriginal    : TStringList;
+  lToOriginal      : TStringList;
+  lFromEncoding    : TEncodingType;
+  lToEncoding      : TEncodingType;
+  lMovedLines      : TStringList;
+  lInsertPos       : Integer;
+  i                : Integer;
+begin
+  Result.Success      := false;
+  Result.ErrorMessage := '';
+  Result.LinesChanged := 0;
+
+  // Validate source file
+  if not FileExists( aFromFile ) then
+    begin
+      Result.ErrorMessage := 'Source file not found: ' + aFromFile;
+      Exit;
+    end;
+
+  // Validate target file (must exist)
+  if not FileExists( aToFile ) then
+    begin
+      Result.ErrorMessage := 'Target file not found: ' + aToFile + ' (target file must exist)';
+      Exit;
+    end;
+
+  // Read source file
+  if not TEncodingHelper.ReadFile( aFromFile, lFromLines, lFromEncoding ) then
+    begin
+      Result.ErrorMessage := 'Failed to read source file: ' + aFromFile;
+      Exit;
+    end;
+
+  // Read target file
+  if not TEncodingHelper.ReadFile( aToFile, lToLines, lToEncoding ) then
+    begin
+      lFromLines.Free;
+      Result.ErrorMessage := 'Failed to read target file: ' + aToFile;
+      Exit;
+    end;
+
+  lFromOriginal := NIL;
+  lToOriginal   := NIL;
+  lMovedLines   := TStringList.Create;
+
+  try
+    // Validate line range in source file
+    if ( aStartLine < 1 ) or ( aStartLine > lFromLines.Count ) then
+      begin
+        Result.ErrorMessage := 'Invalid start line: ' + IntToStr( aStartLine ) + ' (source file has ' + IntToStr( lFromLines.Count ) + ' lines)';
+        Exit;
+      end;
+
+    if ( aEndLine < aStartLine ) or ( aEndLine > lFromLines.Count ) then
+      begin
+        Result.ErrorMessage := 'Invalid end line: ' + IntToStr( aEndLine ) + ' (source file has ' + IntToStr( lFromLines.Count ) + ' lines)';
+        Exit;
+      end;
+
+    // Determine insert position in target file
+    if aInsertAfterLine > 0 then
+      begin
+        if aInsertAfterLine > lToLines.Count then
+          begin
+            Result.ErrorMessage := 'Invalid insert-after-line: ' + IntToStr( aInsertAfterLine ) + ' (target file has ' + IntToStr( lToLines.Count ) + ' lines)';
+            Exit;
+          end;
+
+        lInsertPos := aInsertAfterLine;
+      end
+    else
+    if aInsertBeforeLine > 0 then
+      begin
+        if ( aInsertBeforeLine < 1 ) or ( aInsertBeforeLine > lToLines.Count ) then
+          begin
+            Result.ErrorMessage := 'Invalid insert-before-line: ' + IntToStr( aInsertBeforeLine ) + ' (target file has ' + IntToStr( lToLines.Count ) + ' lines)';
+            Exit;
+          end;
+
+        lInsertPos := aInsertBeforeLine - 1;
+      end
+    else begin
+           Result.ErrorMessage := 'Either insert-after-line or insert-before-line must be specified';
+           Exit;
+         end;
+
+    if aVerbose then
+      begin
+        WriteLn( 'Source file: ', aFromFile );
+        WriteLn( 'Source encoding: ', if lFromEncoding = etUTF8 then 'UTF-8 with BOM' else 'Windows-1252' );
+        WriteLn( 'Source lines: ', lFromLines.Count );
+        WriteLn( 'Moving lines: ', aStartLine, '-', aEndLine, ' (', aEndLine - aStartLine + 1, ' lines)' );
+        WriteLn;
+        WriteLn( 'Target file: ', aToFile );
+        WriteLn( 'Target encoding: ', if lToEncoding = etUTF8 then 'UTF-8 with BOM' else 'Windows-1252' );
+        WriteLn( 'Target lines: ', lToLines.Count );
+        WriteLn( 'Insert position: after line ', lInsertPos );
+        WriteLn;
+      end;
+
+    // Store originals for diff
+    if aDiff then
+      begin
+        lFromOriginal := TStringList.Create;
+        lFromOriginal.Text := lFromLines.Text;
+        lToOriginal := TStringList.Create;
+        lToOriginal.Text := lToLines.Text;
+      end;
+
+    // Extract lines to move
+    for i := aStartLine - 1 to aEndLine - 1 do
+      lMovedLines.Add( lFromLines[ i ] );
+
+    // Insert into target file
+    for i := lMovedLines.Count - 1 downto 0 do
+      lToLines.Insert( lInsertPos, lMovedLines[ i ] );
+
+    // Delete from source file (from high to low to preserve indices)
+    for i := aEndLine - 1 downto aStartLine - 1 do
+      lFromLines.Delete( i );
+
+    Result.LinesChanged := lMovedLines.Count;
+
+    // Show diff
+    if aDiff then
+      begin
+        WriteLn( '=== Source file changes ===' );
+        TDiffHelper.ShowDiff( lFromOriginal, lFromLines, aFromFile );
+        WriteLn;
+        WriteLn( '=== Target file changes ===' );
+        TDiffHelper.ShowDiff( lToOriginal, lToLines, aToFile );
+      end;
+
+    if aDryRun then
+      begin
+        if aVerbose then
+          WriteLn( 'DRY-RUN: Would move ', lMovedLines.Count, ' lines from ', aFromFile, ' to ', aToFile );
+
+        Result.Success := true;
+        Exit;
+      end;
+
+    // Create backups
+    if aBackup then
+      begin
+        if not CreateBackup( aFromFile ) then
+          begin
+            Result.ErrorMessage := 'Failed to create backup for source file: ' + aFromFile + '.bak';
+            Exit;
+          end;
+
+        if not CreateBackup( aToFile ) then
+          begin
+            Result.ErrorMessage := 'Failed to create backup for target file: ' + aToFile + '.bak';
+            Exit;
+          end;
+      end;
+
+    // Write source file
+    if not TEncodingHelper.WriteFile( aFromFile, lFromLines, lFromEncoding ) then
+      begin
+        Result.ErrorMessage := 'Failed to write source file: ' + aFromFile;
+        Exit;
+      end;
+
+    // Write target file
+    if not TEncodingHelper.WriteFile( aToFile, lToLines, lToEncoding ) then
+      begin
+        Result.ErrorMessage := 'Failed to write target file: ' + aToFile;
+        Exit;
+      end;
+
+    if aVerbose then
+      WriteLn( 'SUCCESS: Moved ', lMovedLines.Count, ' lines from ', aFromFile, ' to ', aToFile );
+
+    Result.Success := true;
+  finally
+    lFromLines.Free;
+    lToLines.Free;
+    lMovedLines.Free;
+
+    if lFromOriginal <> NIL then
+      lFromOriginal.Free;
+
+    if lToOriginal <> NIL then
+      lToOriginal.Free;
   end;
 end;
 

@@ -336,18 +336,13 @@ class function TUmlautRepair.RepairBytes( const aCorrupted : TBytes;
   // Findet das passende Umlaut-Byte aus der Referenz basierend auf Kontext
   function FindMatchingUmlaut( aCorruptedPos : Integer; const aContext : Integer = 10 ) : Byte;
   Var
-    lCtxStart, lCtxEnd : Integer;
+    lCtxEnd : Integer;
     lRefPos, lBestMatch, lBestScore, lScore : Integer;
     k, lOffset : Integer;
   begin
     Result := CORRUPTED_BYTE;  // Fallback: nicht ändern
 
-    // Kontext vor dem 9D-Byte extrahieren
-    lCtxStart := aCorruptedPos - aContext;
-
-    if lCtxStart < 0 then
-      lCtxStart := 0;
-
+    // Kontext vor dem 9D-Byte prüfen
     lCtxEnd := aCorruptedPos - 1;
 
     if lCtxEnd < 0 then
@@ -396,7 +391,6 @@ Var
   lFoundByte   : Byte;
   lSameSize    : Boolean;
 begin
-  Result    := false;
   aCount    := 0;
   lSameSize := Length( aCorrupted ) = Length( aReference );
 

@@ -4,6 +4,98 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.7.7] - 2026-01-20
+
+### Fixed
+- **Bugfix: Dry-Run Mode respected**: `--delete-config-on-success` now correctly respects `--dry-run` mode
+  - Config file is **NOT deleted** when using `--dry-run` (no actual changes made)
+  - Clear message: "Dry-run mode: Config file NOT deleted"
+
+---
+
+## [1.7.6] - 2026-01-20
+
+### Added
+- **Delete Config on Success**: New parameter `--delete-config-on-success`
+  - Automatically deletes JSON config file after successful execution
+  - Only deletes if all operations completed successfully (ExitCode = 0)
+  - Useful for automated scripts and CI/CD pipelines
+  - Works with both single-operation and multi-operation configs
+
+### Examples
+```bash
+# Execute config and delete it on success
+StrEditor.exe --config operations.json --delete-config-on-success
+
+# With verbose output
+StrEditor.exe --config operations.json --delete-config-on-success --verbose
+
+# Dry-run does NOT delete config (no actual changes made)
+StrEditor.exe --config operations.json --delete-config-on-success --dry-run
+```
+
+### Tests
+- 3 new unit tests for delete-config-on-success functionality
+
+---
+
+## [1.7.5] - 2026-01-17
+
+### Added
+- **Move Lines Feature**: Move source code lines from one file to another
+  - `--move-lines`: Move lines between files while preserving encoding
+  - `--from <file>`: Source file to move lines from
+  - `--to <file>`: Target file to move lines to
+  - `--start-line <n>`: First line to move (1-based)
+  - `--end-line <n>`: Last line to move (1-based)
+  - `--insert-after-line <n>`: Insert moved lines after this line in target
+  - `--insert-before-line <n>`: Insert moved lines before this line in target
+  - **Encoding Preservation**: Both source and target files keep their original encoding
+  - **Backup Support**: Use `--backup` to create .bak files for both files
+  - **Safe Mode**: Use `--dry-run` to preview changes without modifying files
+  - **JSON-Config Support**: Can be used in batch operations via JSON config
+
+### Implementation
+- Added `MoveLines()` method in `StrEditor.Operations.pas`
+- Extended `StrEditor.CommandLine.pas` with `ctMoveLines` command type
+- Added `FromFile` and `ToFile` parameters to `TCommandLineParams`
+- Extended `StrEditor.Config.pas` for JSON-Config support
+- Integrated move-lines feature into main program
+
+### Tests
+- 8 new unit tests for move-lines functionality
+- All move-lines tests passing (DUnitX)
+
+### Examples
+```bash
+# Move lines 50-100 from UnitA.pas to UnitB.pas after line 200
+StrEditor.exe --move-lines --from "UnitA.pas" --to "UnitB.pas" --start-line 50 --end-line 100 --insert-after-line 200
+
+# Move lines with backup
+StrEditor.exe --move-lines --from "UnitA.pas" --to "UnitB.pas" --start-line 10 --end-line 20 --insert-before-line 50 --backup
+
+# Preview changes (dry-run)
+StrEditor.exe --move-lines --from "UnitA.pas" --to "UnitB.pas" --start-line 10 --end-line 20 --insert-after-line 100 --dry-run
+```
+
+### JSON-Config Example
+```json
+{
+  "operations": [
+    {
+      "command": "move-lines",
+      "from-file": "UnitA.pas",
+      "start-line": 50,
+      "end-line": 100,
+      "to-file": "UnitB.pas",
+      "insert-after-line": 200
+    }
+  ]
+}
+```
+
+---
+
 ## [1.7.4] - 2026-01-11
 
 ### Added

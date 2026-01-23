@@ -104,11 +104,13 @@ end;
 
 procedure TTestMacroExpander.TestExpandMacros_Date;
 Var
-  lResult : string;
+  lResult    : string;
+  lYearStart : string;
 begin
   lResult := TMacroExpander.ExpandMacros( 'Date {{DATE}}', 'test.pas', 1 );
+  lYearStart := 'Date ' + FormatDateTime( 'yyyy-', Now );
 
-  Assert.Contains( lResult, 'Date 2025-' );
+  Assert.Contains( lResult, lYearStart );
 end;
 
 procedure TTestMacroExpander.TestExpandMacros_Time;
@@ -123,13 +125,15 @@ end;
 
 procedure TTestMacroExpander.TestExpandMacros_AllMacros;
 Var
-  lResult : string;
+  lResult    : string;
+  lYearStart : string;
 begin
   lResult := TMacroExpander.ExpandMacros( 'Line {{LINE_NUMBER}} in {{FILE_NAME}} - {{DATE}} {{TIME}}', 'test.pas', 10 );
+  lYearStart := FormatDateTime( 'yyyy-', Now );
 
   Assert.Contains( lResult, 'Line 10' );
   Assert.Contains( lResult, 'test.pas' );
-  Assert.Contains( lResult, '2025-' );
+  Assert.Contains( lResult, lYearStart );
   Assert.Contains( lResult, ':' );
 end;
 

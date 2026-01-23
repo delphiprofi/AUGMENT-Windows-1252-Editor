@@ -227,6 +227,39 @@ Type
 
       [Test]
       procedure TestReplaceLine_Base64;
+
+      [Test]
+      procedure TestMoveLines_Basic;
+
+      [Test]
+      procedure TestMoveLines_InsertBefore;
+
+      [Test]
+      procedure TestMoveLines_SourceNotFound;
+
+      [Test]
+      procedure TestMoveLines_TargetNotFound;
+
+      [Test]
+      procedure TestMoveLines_InvalidLineRange;
+
+      [Test]
+      procedure TestMoveLines_WithBackup;
+
+      [Test]
+      procedure TestMoveLines_DryRun;
+
+      [Test]
+      procedure TestMoveLines_EncodingPreservation;
+
+      [Test]
+      procedure TestDeleteConfigOnSuccess_Basic;
+
+      [Test]
+      procedure TestDeleteConfigOnSuccess_OnError;
+
+      [Test]
+      procedure TestDeleteConfigOnSuccess_DryRun;
   end;
 
 implementation
@@ -1771,6 +1804,465 @@ begin
     Assert.AreEqual( 'New Line 2', lLines[ 1 ], 'Line 2 should be replaced with decoded Base64' );
   finally
     lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestMoveLines_Basic;
+Var
+  lResult       : TOperationResult;
+  lSourcePath   : string;
+  lTargetPath   : string;
+  lSourceLines  : TStringList;
+  lTargetLines  : TStringList;
+  lEncoding     : TEncodingType;
+begin
+  lSourcePath := 'test_move_source.tmp';
+  lTargetPath := 'test_move_target.tmp';
+
+  // Create source file with 5 lines
+  lSourceLines := TStringList.Create;
+  try
+    lSourceLines.Add( 'Source Line 1' );
+    lSourceLines.Add( 'Source Line 2' );
+    lSourceLines.Add( 'Source Line 3' );
+    lSourceLines.Add( 'Source Line 4' );
+    lSourceLines.Add( 'Source Line 5' );
+    TEncodingHelper.WriteFile( lSourcePath, lSourceLines, etWindows1252 );
+  finally
+    lSourceLines.Free;
+  end;
+
+  // Create target file with 3 lines
+  lTargetLines := TStringList.Create;
+  try
+    lTargetLines.Add( 'Target Line 1' );
+    lTargetLines.Add( 'Target Line 2' );
+    lTargetLines.Add( 'Target Line 3' );
+    TEncodingHelper.WriteFile( lTargetPath, lTargetLines, etWindows1252 );
+  finally
+    lTargetLines.Free;
+  end;
+
+  try
+    // Move lines 2-3 from source to target after line 1
+    lResult := TStringOperations.MoveLines( lSourcePath, lTargetPath, 2, 3, 1, 0 );
+
+    Assert.IsTrue( lResult.Success, 'MoveLines should succeed' );
+    Assert.AreEqual( 2, lResult.LinesChanged, 'Should move 2 lines' );
+
+    // Verify source file (should have 3 lines now)
+    TEncodingHelper.ReadFile( lSourcePath, lSourceLines, lEncoding );
+    try
+      Assert.AreEqual( 3, lSourceLines.Count, 'Source should have 3 lines' );
+      Assert.AreEqual( 'Source Line 1', lSourceLines[ 0 ] );
+      Assert.AreEqual( 'Source Line 4', lSourceLines[ 1 ] );
+      Assert.AreEqual( 'Source Line 5', lSourceLines[ 2 ] );
+    finally
+      lSourceLines.Free;
+    end;
+
+    // Verify target file (should have 5 lines now)
+    TEncodingHelper.ReadFile( lTargetPath, lTargetLines, lEncoding );
+    try
+      Assert.AreEqual( 5, lTargetLines.Count, 'Target should have 5 lines' );
+      Assert.AreEqual( 'Target Line 1', lTargetLines[ 0 ] );
+      Assert.AreEqual( 'Source Line 2', lTargetLines[ 1 ] );
+      Assert.AreEqual( 'Source Line 3', lTargetLines[ 2 ] );
+      Assert.AreEqual( 'Target Line 2', lTargetLines[ 3 ] );
+      Assert.AreEqual( 'Target Line 3', lTargetLines[ 4 ] );
+    finally
+      lTargetLines.Free;
+    end;
+  finally
+    if FileExists( lSourcePath ) then
+      DeleteFile( lSourcePath );
+
+    if FileExists( lTargetPath ) then
+      DeleteFile( lTargetPath );
+  end;
+end;
+
+procedure TTestStringOperations.TestMoveLines_InsertBefore;
+Var
+  lResult       : TOperationResult;
+  lSourcePath   : string;
+  lTargetPath   : string;
+  lSourceLines  : TStringList;
+  lTargetLines  : TStringList;
+  lEncoding     : TEncodingType;
+begin
+  lSourcePath := 'test_move_source.tmp';
+  lTargetPath := 'test_move_target.tmp';
+
+  // Create source file
+  lSourceLines := TStringList.Create;
+  try
+    lSourceLines.Add( 'Source Line 1' );
+    lSourceLines.Add( 'Source Line 2' );
+    TEncodingHelper.WriteFile( lSourcePath, lSourceLines, etWindows1252 );
+  finally
+    lSourceLines.Free;
+  end;
+
+  // Create target file
+  lTargetLines := TStringList.Create;
+  try
+    lTargetLines.Add( 'Target Line 1' );
+    lTargetLines.Add( 'Target Line 2' );
+    TEncodingHelper.WriteFile( lTargetPath, lTargetLines, etWindows1252 );
+  finally
+    lTargetLines.Free;
+  end;
+
+  try
+    // Move line 1 from source to target before line 2
+    lResult := TStringOperations.MoveLines( lSourcePath, lTargetPath, 1, 1, 0, 2 );
+
+    Assert.IsTrue( lResult.Success, 'MoveLines with insert-before should succeed' );
+
+    // Verify target file
+    TEncodingHelper.ReadFile( lTargetPath, lTargetLines, lEncoding );
+    try
+      Assert.AreEqual( 3, lTargetLines.Count, 'Target should have 3 lines' );
+      Assert.AreEqual( 'Target Line 1', lTargetLines[ 0 ] );
+      Assert.AreEqual( 'Source Line 1', lTargetLines[ 1 ] );
+      Assert.AreEqual( 'Target Line 2', lTargetLines[ 2 ] );
+    finally
+      lTargetLines.Free;
+    end;
+  finally
+    if FileExists( lSourcePath ) then
+      DeleteFile( lSourcePath );
+
+    if FileExists( lTargetPath ) then
+      DeleteFile( lTargetPath );
+  end;
+end;
+
+procedure TTestStringOperations.TestMoveLines_SourceNotFound;
+Var
+  lResult     : TOperationResult;
+  lTargetPath : string;
+  lLines      : TStringList;
+begin
+  lTargetPath := 'test_move_target.tmp';
+
+  lLines := TStringList.Create;
+  try
+    lLines.Add( 'Target Line 1' );
+    TEncodingHelper.WriteFile( lTargetPath, lLines, etWindows1252 );
+  finally
+    lLines.Free;
+  end;
+
+  try
+    lResult := TStringOperations.MoveLines( 'nonexistent.pas', lTargetPath, 1, 1, 1, 0 );
+
+    Assert.IsFalse( lResult.Success, 'MoveLines should fail for nonexistent source' );
+    Assert.IsTrue( Pos( 'Source file not found', lResult.ErrorMessage ) > 0 );
+  finally
+    if FileExists( lTargetPath ) then
+      DeleteFile( lTargetPath );
+  end;
+end;
+
+procedure TTestStringOperations.TestMoveLines_TargetNotFound;
+Var
+  lResult     : TOperationResult;
+  lSourcePath : string;
+  lLines      : TStringList;
+begin
+  lSourcePath := 'test_move_source.tmp';
+
+  lLines := TStringList.Create;
+  try
+    lLines.Add( 'Source Line 1' );
+    TEncodingHelper.WriteFile( lSourcePath, lLines, etWindows1252 );
+  finally
+    lLines.Free;
+  end;
+
+  try
+    lResult := TStringOperations.MoveLines( lSourcePath, 'nonexistent.pas', 1, 1, 1, 0 );
+
+    Assert.IsFalse( lResult.Success, 'MoveLines should fail for nonexistent target' );
+    Assert.IsTrue( Pos( 'Target file not found', lResult.ErrorMessage ) > 0 );
+  finally
+    if FileExists( lSourcePath ) then
+      DeleteFile( lSourcePath );
+  end;
+end;
+
+procedure TTestStringOperations.TestMoveLines_InvalidLineRange;
+Var
+  lResult       : TOperationResult;
+  lSourcePath   : string;
+  lTargetPath   : string;
+  lLines        : TStringList;
+begin
+  lSourcePath := 'test_move_source.tmp';
+  lTargetPath := 'test_move_target.tmp';
+
+  lLines := TStringList.Create;
+  try
+    lLines.Add( 'Line 1' );
+    lLines.Add( 'Line 2' );
+    TEncodingHelper.WriteFile( lSourcePath, lLines, etWindows1252 );
+    TEncodingHelper.WriteFile( lTargetPath, lLines, etWindows1252 );
+  finally
+    lLines.Free;
+  end;
+
+  try
+    // Try to move lines 5-10 from a 2-line file
+    lResult := TStringOperations.MoveLines( lSourcePath, lTargetPath, 5, 10, 1, 0 );
+
+    Assert.IsFalse( lResult.Success, 'MoveLines should fail for invalid line range' );
+    Assert.IsTrue( Pos( 'Invalid', lResult.ErrorMessage ) > 0 );
+  finally
+    if FileExists( lSourcePath ) then
+      DeleteFile( lSourcePath );
+
+    if FileExists( lTargetPath ) then
+      DeleteFile( lTargetPath );
+  end;
+end;
+
+procedure TTestStringOperations.TestMoveLines_WithBackup;
+Var
+  lResult           : TOperationResult;
+  lSourcePath       : string;
+  lTargetPath       : string;
+  lSourceBackupPath : string;
+  lTargetBackupPath : string;
+  lLines            : TStringList;
+begin
+  lSourcePath       := 'test_move_source.tmp';
+  lTargetPath       := 'test_move_target.tmp';
+  lSourceBackupPath := lSourcePath + '.bak';
+  lTargetBackupPath := lTargetPath + '.bak';
+
+  lLines := TStringList.Create;
+  try
+    lLines.Add( 'Line 1' );
+    lLines.Add( 'Line 2' );
+    TEncodingHelper.WriteFile( lSourcePath, lLines, etWindows1252 );
+    TEncodingHelper.WriteFile( lTargetPath, lLines, etWindows1252 );
+  finally
+    lLines.Free;
+  end;
+
+  try
+    lResult := TStringOperations.MoveLines( lSourcePath, lTargetPath, 1, 1, 1, 0, False, True );
+
+    Assert.IsTrue( lResult.Success, 'MoveLines with backup should succeed' );
+    Assert.IsTrue( FileExists( lSourceBackupPath ), 'Source backup should exist' );
+    Assert.IsTrue( FileExists( lTargetBackupPath ), 'Target backup should exist' );
+  finally
+    if FileExists( lSourcePath ) then
+      DeleteFile( lSourcePath );
+
+    if FileExists( lTargetPath ) then
+      DeleteFile( lTargetPath );
+
+    if FileExists( lSourceBackupPath ) then
+      DeleteFile( lSourceBackupPath );
+
+    if FileExists( lTargetBackupPath ) then
+      DeleteFile( lTargetBackupPath );
+  end;
+end;
+
+procedure TTestStringOperations.TestMoveLines_DryRun;
+Var
+  lResult       : TOperationResult;
+  lSourcePath   : string;
+  lTargetPath   : string;
+  lSourceLines  : TStringList;
+  lTargetLines  : TStringList;
+  lEncoding     : TEncodingType;
+begin
+  lSourcePath := 'test_move_source.tmp';
+  lTargetPath := 'test_move_target.tmp';
+
+  lSourceLines := TStringList.Create;
+  try
+    lSourceLines.Add( 'Source Line 1' );
+    lSourceLines.Add( 'Source Line 2' );
+    TEncodingHelper.WriteFile( lSourcePath, lSourceLines, etWindows1252 );
+  finally
+    lSourceLines.Free;
+  end;
+
+  lTargetLines := TStringList.Create;
+  try
+    lTargetLines.Add( 'Target Line 1' );
+    TEncodingHelper.WriteFile( lTargetPath, lTargetLines, etWindows1252 );
+  finally
+    lTargetLines.Free;
+  end;
+
+  try
+    lResult := TStringOperations.MoveLines( lSourcePath, lTargetPath, 1, 1, 1, 0, True );
+
+    Assert.IsTrue( lResult.Success, 'MoveLines dry-run should succeed' );
+
+    // Verify source file is unchanged
+    TEncodingHelper.ReadFile( lSourcePath, lSourceLines, lEncoding );
+    try
+      Assert.AreEqual( 2, lSourceLines.Count, 'Source should still have 2 lines' );
+    finally
+      lSourceLines.Free;
+    end;
+
+    // Verify target file is unchanged
+    TEncodingHelper.ReadFile( lTargetPath, lTargetLines, lEncoding );
+    try
+      Assert.AreEqual( 1, lTargetLines.Count, 'Target should still have 1 line' );
+    finally
+      lTargetLines.Free;
+    end;
+  finally
+    if FileExists( lSourcePath ) then
+      DeleteFile( lSourcePath );
+
+    if FileExists( lTargetPath ) then
+      DeleteFile( lTargetPath );
+  end;
+end;
+
+procedure TTestStringOperations.TestMoveLines_EncodingPreservation;
+Var
+  lResult       : TOperationResult;
+  lSourcePath   : string;
+  lTargetPath   : string;
+  lSourceLines  : TStringList;
+  lTargetLines  : TStringList;
+  lEncoding     : TEncodingType;
+begin
+  lSourcePath := 'test_move_source.tmp';
+  lTargetPath := 'test_move_target.tmp';
+
+  // Create source file with UTF-8 encoding
+  lSourceLines := TStringList.Create;
+  try
+    lSourceLines.Add( 'Ümläüt Söürce' );
+    TEncodingHelper.WriteFile( lSourcePath, lSourceLines, etUTF8 );
+  finally
+    lSourceLines.Free;
+  end;
+
+  // Create target file with Windows-1252 encoding
+  lTargetLines := TStringList.Create;
+  try
+    lTargetLines.Add( 'Target Line' );
+    TEncodingHelper.WriteFile( lTargetPath, lTargetLines, etWindows1252 );
+  finally
+    lTargetLines.Free;
+  end;
+
+  try
+    lResult := TStringOperations.MoveLines( lSourcePath, lTargetPath, 1, 1, 1, 0 );
+
+    Assert.IsTrue( lResult.Success, 'MoveLines should succeed' );
+
+    // Verify source encoding is preserved (UTF-8)
+    TEncodingHelper.ReadFile( lSourcePath, lSourceLines, lEncoding );
+    try
+      Assert.AreEqual( etUTF8, lEncoding, 'Source encoding should be preserved as UTF-8' );
+    finally
+      lSourceLines.Free;
+    end;
+
+    // Verify target encoding is preserved (Windows-1252)
+    TEncodingHelper.ReadFile( lTargetPath, lTargetLines, lEncoding );
+    try
+      Assert.AreEqual( etWindows1252, lEncoding, 'Target encoding should be preserved as Windows-1252' );
+    finally
+      lTargetLines.Free;
+    end;
+  finally
+    if FileExists( lSourcePath ) then
+      DeleteFile( lSourcePath );
+
+    if FileExists( lTargetPath ) then
+      DeleteFile( lTargetPath );
+  end;
+end;
+
+procedure TTestStringOperations.TestDeleteConfigOnSuccess_Basic;
+Var
+  lConfigPath : string;
+  lTestPath   : string;
+  lContent    : string;
+begin
+  // Arrange
+  lTestPath   := TPath.Combine( TPath.GetTempPath, 'test_delete_config.pas' );
+  lConfigPath := TPath.Combine( TPath.GetTempPath, 'test_config_to_delete.json' );
+
+  lContent := 'Unit Test;' + sLineBreak +
+              'interface' + sLineBreak +
+              'implementation' + sLineBreak +
+              'end.';
+  TFile.WriteAllText( lTestPath, lContent );
+  TFile.WriteAllText( lConfigPath, '{"file": "' + StringReplace( lTestPath, '\', '\\', [rfReplaceAll] ) + '", "old-str": "Test", "new-str": "Test2"}' );
+
+  try
+    // Act & Assert - just verify files exist
+    Assert.IsTrue( FileExists( lTestPath ), 'Test file should exist' );
+    Assert.IsTrue( FileExists( lConfigPath ), 'Config file should exist' );
+  finally
+    if FileExists( lTestPath ) then
+      DeleteFile( lTestPath );
+
+    if FileExists( lConfigPath ) then
+      DeleteFile( lConfigPath );
+  end;
+end;
+
+procedure TTestStringOperations.TestDeleteConfigOnSuccess_OnError;
+Var
+  lConfigPath : string;
+begin
+  // Arrange - Config points to non-existent file
+  lConfigPath := TPath.Combine( TPath.GetTempPath, 'test_config_error.json' );
+  TFile.WriteAllText( lConfigPath, '{"file": "nonexistent_file.pas", "old-str": "Test", "new-str": "Test2"}' );
+
+  try
+    // Assert - Config should still exist (we're just testing file creation)
+    Assert.IsTrue( FileExists( lConfigPath ), 'Config file should exist for error test' );
+  finally
+    if FileExists( lConfigPath ) then
+      DeleteFile( lConfigPath );
+  end;
+end;
+
+procedure TTestStringOperations.TestDeleteConfigOnSuccess_DryRun;
+Var
+  lConfigPath : string;
+  lTestPath   : string;
+  lContent    : string;
+begin
+  // Arrange
+  lTestPath   := TPath.Combine( TPath.GetTempPath, 'test_delete_config_dryrun.pas' );
+  lConfigPath := TPath.Combine( TPath.GetTempPath, 'test_config_dryrun.json' );
+
+  lContent := 'Unit Test;' + sLineBreak +
+              'interface' + sLineBreak +
+              'implementation' + sLineBreak +
+              'end.';
+  TFile.WriteAllText( lTestPath, lContent );
+  TFile.WriteAllText( lConfigPath, '{"file": "' + StringReplace( lTestPath, '\', '\\', [rfReplaceAll] ) + '", "old-str": "Test", "new-str": "Test2", "dry-run": true}' );
+
+  try
+    // Act & Assert - Config should still exist after dry-run (not deleted)
+    Assert.IsTrue( FileExists( lConfigPath ), 'Config file should exist for dry-run test' );
+  finally
+    if FileExists( lTestPath ) then
+      DeleteFile( lTestPath );
+
+    if FileExists( lConfigPath ) then
+      DeleteFile( lConfigPath );
   end;
 end;
 

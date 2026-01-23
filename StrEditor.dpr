@@ -581,6 +581,33 @@ begin
              end;
       end;
 
+    ctMoveLines:
+      begin
+        if aParams.Verbose then
+          begin
+            if aParams.DryRun
+              then WriteLn( '[DRY-RUN] Moving lines ' + IntToStr( aParams.StartLine ) + '-' + IntToStr( aParams.EndLine ) + ' from ' + aParams.FromFile + ' to ' + aParams.ToFile )
+              else WriteLn( 'Moving lines ' + IntToStr( aParams.StartLine ) + '-' + IntToStr( aParams.EndLine ) + ' from ' + aParams.FromFile + ' to ' + aParams.ToFile );
+          end;
+
+        lResult := TStringOperations.MoveLines( aParams.FromFile, aParams.ToFile, aParams.StartLine, aParams.EndLine, aParams.InsertAfterLine, aParams.InsertBeforeLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.Verbose );
+
+        if lResult.Success then
+          begin
+            if not aParams.DryRun then
+              WriteLn( 'SUCCESS: Moved ' + IntToStr( lResult.LinesChanged ) + ' line(s) from ' + aParams.FromFile + ' to ' + aParams.ToFile );
+
+            ExitCode := Ord( ecSuccess );
+          end
+        else begin
+               WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+
+               if Pos( 'File not found', lResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecFileNotFound )
+                 else ExitCode := Ord( ecOperationFailed );
+             end;
+      end;
+
     else begin
            TCommandLineParser.ShowError( 'Unknown command' );
            ExitCode := Ord( ecParameterError );
@@ -654,6 +681,20 @@ begin
                      end;
                  end;
 
+            // Delete config file on success if requested (not in dry-run mode)
+            if lParams.DeleteConfigOnSuccess and ( ExitCode = Ord( ecSuccess ) ) and ( not lParams.DryRun ) then
+              begin
+                if lParams.Verbose then
+                  WriteLn( 'Deleting config file: ' + lParams.ConfigFile );
+
+                if DeleteFile( lParams.ConfigFile )
+                  then WriteLn( 'Config file deleted successfully' )
+                  else WriteLn( 'WARNING: Could not delete config file: ' + lParams.ConfigFile );
+              end
+            else
+            if lParams.DeleteConfigOnSuccess and lParams.DryRun then
+              WriteLn( 'Dry-run mode: Config file NOT deleted' );
+
             Exit;
           end
         else begin
@@ -680,6 +721,20 @@ begin
       end;
 
     ProcessSingleFile( lParams );
+
+    // Delete config file on success if requested (for single operation config, not in dry-run mode)
+    if ( lParams.ConfigFile <> '' ) and lParams.DeleteConfigOnSuccess and ( ExitCode = Ord( ecSuccess ) ) and ( not lParams.DryRun ) then
+      begin
+        if lParams.Verbose then
+          WriteLn( 'Deleting config file: ' + lParams.ConfigFile );
+
+        if DeleteFile( lParams.ConfigFile )
+          then WriteLn( 'Config file deleted successfully' )
+          else WriteLn( 'WARNING: Could not delete config file: ' + lParams.ConfigFile );
+      end
+    else
+    if ( lParams.ConfigFile <> '' ) and lParams.DeleteConfigOnSuccess and lParams.DryRun then
+      WriteLn( 'Dry-run mode: Config file NOT deleted' );
   except
     on E : Exception do
       begin

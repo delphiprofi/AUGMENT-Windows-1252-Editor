@@ -1,7 +1,7 @@
 # StrEditor - Integration Guide
 
-**Version:** 1.7.4
-**Last Updated:** 2026-01-11
+**Version:** 1.7.7
+**Last Updated:** 2026-01-20
 
 ---
 
@@ -123,6 +123,26 @@ StrEditor is a command-line tool for editing Delphi source files while preservin
 - **VCS Integration**: Automatically uses Mercurial (hg) or Git to get original file content
 - **Reference File**: Use a reference file instead of VCS (`--reference <file>`)
 - **Smart Detection**: Detects broken UTF-8 bytes in Windows-1252 files (Ã¤ → ä, Ã¶ → ö, etc.)
+
+### Move Lines (v1.7.5)
+- **Move Lines**: Move source code lines from one file to another (`--move-lines`)
+- **From/To Files**: Specify source (`--from <file>`) and target (`--to <file>`) files
+- **Line Range**: Specify lines to move (`--start-line <n>`, `--end-line <n>`)
+- **Insert Position**: Insert after (`--insert-after-line <n>`) or before (`--insert-before-line <n>`) a line
+- **Encoding Preservation**: Both source and target files keep their original encoding
+- **Backup Support**: Create backups for both files with `--backup`
+- **JSON Config Support**: Can be used in batch operations via JSON config
+
+### Delete Config on Success (v1.7.6)
+- **Auto-Cleanup**: Automatically delete JSON config file after successful execution (`--delete-config-on-success`)
+- **Only on Success**: Config is only deleted if all operations completed successfully (ExitCode = 0)
+- **Dry-Run Safe**: Config is NOT deleted when using `--dry-run` (no actual changes made)
+- **Use Case**: Useful for automated scripts and CI/CD pipelines
+
+```bash
+# Execute config and delete it on success
+StrEditor.exe --config operations.json --delete-config-on-success --verbose
+```
 
 ---
 

@@ -18,6 +18,13 @@ Type
   /// </summary>
   {$ENDREGION}
   TConfigHelper = class
+    private
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   F3: Prüft Parameter auf literal \r\n (4 Zeichen) und gibt Warnung aus
+      /// </summary>
+      {$ENDREGION}
+      class procedure CheckForLiteralBackslashRN( const aParams : TCommandLineParams );
     public
       {$REGION 'Documentation'}
       /// <summary>
@@ -94,13 +101,16 @@ begin
       aParams.IndentLevel      := lJSON.GetValue<Integer>( 'indent', 0 );
       aParams.LineNumber       := lJSON.GetValue<Integer>( 'line', -1 );
       aParams.LineNumbers      := lJSON.GetValue<string>( 'lines', '' );
+      // Move-Lines parameters
+      aParams.FromFile         := lJSON.GetValue<string>( 'from-file', '' );
+      aParams.ToFile           := lJSON.GetValue<string>( 'to-file', '' );
 
       lCommand := lJSON.GetValue<string>( 'command', 'str-replace' );
 
       if SameText( lCommand, 'str-replace' )
         then aParams.Command := ctStrReplace
         else
-      if SameText( lCommand, 'insert' )
+      if SameText( lCommand, 'insert' ) or SameText( lCommand, 'insert-after' )
         then aParams.Command := ctInsert
         else
       if SameText( lCommand, 'insert-before' )
@@ -123,6 +133,9 @@ begin
         else
       if SameText( lCommand, 'replace-line' )
         then aParams.Command := ctReplaceLine
+        else
+      if SameText( lCommand, 'move-lines' )
+        then aParams.Command := ctMoveLines
         else begin
                WriteLn( 'Error: Invalid command in config file: ' + lCommand );
                Exit;
@@ -146,6 +159,9 @@ begin
                  end;
         end
       else aParams.CaseConversion := ccNone;
+
+      // F3: Prüfe auf literal \r\n und gib Warnung aus
+      CheckForLiteralBackslashRN( aParams );
 
       Result := true;
     finally
@@ -222,6 +238,21 @@ begin
           if lParams.Text = '' then
             lParams.Text := TJSONObject( lOperation ).GetValue<string>( 'with', '' );
 
+          // F1: text-lines Array - Join array elements with CRLF
+          Var lTextLinesValue := TJSONObject( lOperation ).FindValue( 'text-lines' );
+
+          if ( lTextLinesValue <> NIL ) and ( lTextLinesValue is TJSONArray ) then
+            begin
+              Var lTextLines := TJSONArray( lTextLinesValue );
+              Var lTextParts : TArray<string>;
+              SetLength( lTextParts, lTextLines.Count );
+
+              for Var k := 0 to lTextLines.Count - 1 do
+                lTextParts[k] := lTextLines.Items[k].Value;
+
+              lParams.Text := String.Join( #13#10, lTextParts );
+            end;
+
           lParams.InsertAfterLine  := TJSONObject( lOperation ).GetValue<Integer>( 'insert-after-line', -1 );
           lParams.InsertBeforeLine := TJSONObject( lOperation ).GetValue<Integer>( 'insert-before-line', -1 );
           lParams.RegexPattern     := TJSONObject( lOperation ).GetValue<string>( 'regex-pattern', '' );
@@ -241,13 +272,16 @@ begin
           lParams.IndentLevel      := TJSONObject( lOperation ).GetValue<Integer>( 'indent', 0 );
           lParams.LineNumber       := TJSONObject( lOperation ).GetValue<Integer>( 'line', -1 );
           lParams.LineNumbers      := TJSONObject( lOperation ).GetValue<string>( 'lines', '' );
+          // Move-Lines parameters
+          lParams.FromFile         := TJSONObject( lOperation ).GetValue<string>( 'from-file', '' );
+          lParams.ToFile           := TJSONObject( lOperation ).GetValue<string>( 'to-file', '' );
 
           lCommand := TJSONObject( lOperation ).GetValue<string>( 'command', 'str-replace' );
 
           if SameText( lCommand, 'str-replace' )
             then lParams.Command := ctStrReplace
             else
-          if SameText( lCommand, 'insert' )
+          if SameText( lCommand, 'insert' ) or SameText( lCommand, 'insert-after' )
             then lParams.Command := ctInsert
             else
           if SameText( lCommand, 'insert-before' )
@@ -270,6 +304,12 @@ begin
             else
           if SameText( lCommand, 'replace-line' )
             then lParams.Command := ctReplaceLine
+            else
+          if SameText( lCommand, 'replace-lines' )
+            then lParams.Command := ctReplaceLines
+            else
+          if SameText( lCommand, 'move-lines' )
+            then lParams.Command := ctMoveLines
             else begin
                    WriteLn( 'Error: Invalid command in operation ' + IntToStr( i + 1 ) + ': ' + lCommand );
                    Exit;
@@ -293,6 +333,9 @@ begin
                      end;
             end
           else lParams.CaseConversion := ccNone;
+
+          // F3: Prüfe auf literal \r\n und gib Warnung aus
+          CheckForLiteralBackslashRN( lParams );
 
           aOperations[ i ] := lParams;
         end;
@@ -335,6 +378,45 @@ begin
   except
     Result := false;
   end;
+end;
+
+class procedure TConfigHelper.CheckForLiteralBackslashRN( const aParams : TCommandLineParams );
+Const
+  cLiteralBackslashRN = '\r\n';  // 4 Zeichen: \, r, \, n
+Var
+  lWarnings : TArray<string>;
+begin
+  SetLength( lWarnings, 0 );
+
+  // Prüfe Text-Parameter
+  if Pos( cLiteralBackslashRN, aParams.Text ) > 0 then
+    begin
+      SetLength( lWarnings, Length( lWarnings ) + 1 );
+      lWarnings[High( lWarnings )] := 'text';
+    end;
+
+  // Prüfe OldStr-Parameter
+  if Pos( cLiteralBackslashRN, aParams.OldStr ) > 0 then
+    begin
+      SetLength( lWarnings, Length( lWarnings ) + 1 );
+      lWarnings[High( lWarnings )] := 'old-str';
+    end;
+
+  // Prüfe NewStr-Parameter
+  if Pos( cLiteralBackslashRN, aParams.NewStr ) > 0 then
+    begin
+      SetLength( lWarnings, Length( lWarnings ) + 1 );
+      lWarnings[High( lWarnings )] := 'new-str';
+    end;
+
+  // Ausgabe nach stderr wenn Warnings gefunden
+  if Length( lWarnings ) > 0 then
+    begin
+      WriteLn( ErrOutput, 'WARNING: Detected literal \r\n (4 characters) in parameter: ' + String.Join( ', ', lWarnings ) );
+      WriteLn( ErrOutput, '  This is probably NOT what you want!' );
+      WriteLn( ErrOutput, '  For real line breaks, use JSON with "text-lines" array or base64 encoding.' );
+      WriteLn( ErrOutput, '  Example: "text-lines": ["Line 1", "Line 2"]' );
+    end;
 end;
 
 end.
