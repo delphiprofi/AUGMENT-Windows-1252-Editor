@@ -4,6 +4,41 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.8.1] - 2026-01-26
+
+### Added
+- **Hex-Dump Output (`--hex`)**: Display file content as hex dump
+  - Format: `OFFSET: HH HH HH HH HH HH HH HH  HH HH HH HH HH HH HH HH  ASCII`
+  - 16 bytes per line with space after 8th byte for readability
+  - ASCII representation shows printable characters (32-126), others as `.`
+  - Use case: Encoding debugging (e.g., `F6` = Windows-1252 ö, `C3 B6` = UTF-8 ö)
+
+- **Base64 Output (`--base64`)**: Display file content as Base64 string
+  - Use case: Transport file content for tests or copy/paste
+  - Use case: Embed binary data in JSON configs
+
+- **Byte-based Head/Tail**: In hex and base64 modes, `--head` and `--tail` operate on **byte offsets**, not line numbers
+  - Example: `--show --hex --head 64` shows first 64 bytes
+  - Example: `--show --base64 --tail 32` shows last 32 bytes as Base64
+
+### Fixed
+- **TrailingLineBreak Preservation**: Files without trailing CRLF are now correctly preserved
+  - Previously, `TStringList.Text` always added CRLF at end
+  - Now detects original state and preserves it
+
+- **Original Line Numbers in BatchProcessor**: All line numbers in JSON configs now refer to the **original file state**
+  - BatchProcessor internally tracks offsets and adjusts line numbers
+  - Makes complex refactoring configs much easier to create
+
+- **UTF-8 JSON Config Reading**: JSON configs are now explicitly read as UTF-8
+  - Fixes issues with umlauts in JSON config files
+
+### Tests
+- 10 new unit tests for hex/base64 features
+- 169 total tests passing
+
+---
+
 ## [1.8.0] - 2026-01-23
 
 ### Added

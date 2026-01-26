@@ -1,8 +1,8 @@
 # AUGMENT-Windows-1252-Editor
 Dies ist ein Ersatz für den eingebauten str-replace-editor, wenn Sie mit Legacy-Code arbeiten, der nicht UTF-8 ist und nicht migriert werden kann!
 
-**Version:** 1.8.0
-**Letztes Update:** 2026-01-23
+**Version:** 1.8.1
+**Letztes Update:** 2026-01-26
 **Lizenz:** MIT License - siehe [LICENSE.md](LICENSE.md)
 
 ---
@@ -49,6 +49,13 @@ StrEditor ist ein Kommandozeilen-Tool zum Ersetzen und Einfügen von Text in Del
 - ✅ **Umlaute reparieren**: Kaputte Umlaute automatisch reparieren (`--repair-umlauts`) **[NEU in v1.7.4]**
 - ✅ **Zeilen verschieben**: Quellcode-Zeilen zwischen Dateien verschieben (`--move-lines`) **[NEU in v1.7.5]**
 - ✅ **Config löschen bei Erfolg**: JSON-Config nach Erfolg automatisch löschen (`--delete-config-on-success`) **[NEU in v1.7.6]**
+- ✅ **Hex-Dump Ausgabe**: Datei als Hex-Dump für Encoding-Debugging anzeigen (`--hex`) **[NEU in v1.8.1]**
+- ✅ **Base64 Ausgabe**: Datei als Base64-String ausgeben (`--base64`) **[NEU in v1.8.1]**
+- ✅ **Original-Zeilennummern**: JSON-Config Zeilennummern beziehen sich auf Original-Zustand **[NEU in v1.8.1]**
+- ✅ **text-lines Array**: Mehrzeiliger Text in JSON ohne Escaping **[NEU in v1.8.0]**
+- ✅ **replace-lines Befehl**: Zeilenbereiche atomar ersetzen in JSON **[NEU in v1.8.0]**
+- ✅ **Kategorisierte Hilfe**: Kompakte Hilfe mit `--help [category]` **[NEU in v1.8.0]**
+- ✅ **Parameter-Aliase**: Kurznamen: `--ib`, `--ia`, `--dl`, `--rl`, `--ob64`, `--nb64` **[NEU in v1.8.0]**
 - ✅ **Show/Cat-Befehl**: Dateiinhalt mit Encoding-Awareness anzeigen (`--show`) **[NEU in v1.2]**
 - ✅ **Umlaut-Support**: Deutsche Umlaute (ü, ö, ä, ß) werden korrekt behandelt
 - ✅ **String-Replace**: Exakte String-Ersetzung mit optionalen Zeilenbereichen
@@ -166,9 +173,9 @@ Für vollständige Dokumentation siehe:
 
 Das Projekt enthält umfangreiche Unit-Tests:
 
-**Test-Ergebnisse (v1.6.0):**
-- ✅ 76 Tests implementiert
-- ✅ 76 Tests bestanden
+**Test-Ergebnisse (v1.8.1):**
+- ✅ 169 Tests implementiert
+- ✅ 169 Tests bestanden
 - ✅ 0 Tests fehlgeschlagen
 
 ---

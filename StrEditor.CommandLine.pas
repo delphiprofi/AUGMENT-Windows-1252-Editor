@@ -76,6 +76,8 @@ Type
     ShowTail          : Integer;
     ShowRaw           : Boolean;
     ShowLineNumbers   : Boolean;
+    ShowHex           : Boolean;
+    ShowBase64        : Boolean;
     TargetEncoding    : string;
     SourceEncoding    : string;
     OldStrIsBase64    : Boolean;
@@ -192,6 +194,8 @@ begin
   aParams.ShowTail        := 0;
   aParams.ShowRaw         := false;
   aParams.ShowLineNumbers := false;
+  aParams.ShowHex         := false;
+  aParams.ShowBase64      := false;
   aParams.LineNumber      := 0;
   aParams.LineNumbers     := '';
 
@@ -275,6 +279,8 @@ begin
       aParams.Verbose         := HasParam( '--verbose' );
       aParams.ShowLineNumbers := HasParam( '--line-numbers' );
       aParams.ShowRaw         := HasParam( '--raw' );
+      aParams.ShowHex         := HasParam( '--hex' );
+      aParams.ShowBase64      := HasParam( '--base64' );
 
       if HasParam( '--head' ) or HasParam( '--first' ) or HasParam( '--total-count' ) then
         begin
@@ -987,6 +993,8 @@ begin
   WriteLn( '  --end-line <n>    Show until line n' );
   WriteLn( '  --line-numbers    Show line numbers' );
   WriteLn( '  --raw             Output as single string' );
+  WriteLn( '  --hex             Show raw bytes as hex dump (16 bytes per line)' );
+  WriteLn( '  --base64          Output file content as Base64 string' );
   WriteLn;
   WriteLn( 'Documentation:' );
   WriteLn( '  --docs                 Show README.md' );
@@ -997,6 +1005,8 @@ begin
   WriteLn( 'Examples:' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --head 10 --line-numbers' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --start-line 50 --end-line 60' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --show --hex --tail 32' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --show --base64' );
   WriteLn( '  StrEditor.exe --docs CHANGELOG.md --tail 20' );
 end;
 
@@ -1144,9 +1154,16 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.8.0' );
-  WriteLn( 'Build: 2026-01-23' );
+  WriteLn( 'StrEditor v1.8.1' );
+  WriteLn( 'Build: 2026-01-26' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
+  WriteLn;
+  WriteLn( 'New in v1.8.1:' );
+  WriteLn( '  - Hex-Dump Output (--show --hex): Display file as hex dump for encoding debugging' );
+  WriteLn( '  - Base64 Output (--show --base64): Display file as Base64 string' );
+  WriteLn( '  - Byte-based --head/--tail in hex/base64 modes' );
+  WriteLn( '  - Original Line Numbers: JSON config line numbers refer to original file state' );
+  WriteLn( '  - TrailingLineBreak Preservation: Files without trailing CRLF are preserved' );
   WriteLn;
   WriteLn( 'New in v1.8.0:' );
   WriteLn( '  - text-lines Array: Multi-line JSON without escaping (use: "text-lines": ["Line1", "Line2"])' );
