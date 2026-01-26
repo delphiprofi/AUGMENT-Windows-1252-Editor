@@ -70,7 +70,7 @@ Type
       ///   Zeigt Datei-Inhalt an (encoding-aware, wie Get-Content)
       /// </summary>
       {$ENDREGION}
-      class function Show( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aHead : Integer; const aTail : Integer; const aLineNumbers : Boolean; const aRaw : Boolean; const aVerbose : Boolean ) : TOperationResult;
+      class function Show( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aHead : Integer; const aTail : Integer; const aLineNumbers : Boolean; const aRaw : Boolean; const aVerbose : Boolean; const aHex : Boolean = false; const aBase64 : Boolean = false ) : TOperationResult;
 
       {$REGION 'Documentation'}
       /// <summary>
@@ -122,6 +122,24 @@ Type
       /// </summary>
       {$ENDREGION}
       class function MoveLines( const aFromFile : string; const aToFile : string; const aStartLine : Integer; const aEndLine : Integer; const aInsertAfterLine : Integer; const aInsertBeforeLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Rückt Zeilen ein (fügt Spaces am Zeilenanfang hinzu)
+      ///   aStartLine/aEndLine: Zeilenbereich (1-basiert)
+      ///   aSpaces: Anzahl der Spaces zum Einrücken
+      /// </summary>
+      {$ENDREGION}
+      class function IndentLines( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aSpaces : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Rückt Zeilen aus (entfernt Spaces am Zeilenanfang)
+      ///   aStartLine/aEndLine: Zeilenbereich (1-basiert)
+      ///   aSpaces: Anzahl der Spaces zum Ausrücken
+      /// </summary>
+      {$ENDREGION}
+      class function UnindentLines( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aSpaces : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
 
     strict private
       class function FindAndReplace( const aLines : TStringList; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer; const aVerbose : Boolean = false ) : Boolean;
@@ -628,16 +646,23 @@ begin
   end;
 end;
 
-class function TStringOperations.Show( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aHead : Integer; const aTail : Integer; const aLineNumbers : Boolean; const aRaw : Boolean; const aVerbose : Boolean ) : TOperationResult;
+class function TStringOperations.Show( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aHead : Integer; const aTail : Integer; const aLineNumbers : Boolean; const aRaw : Boolean; const aVerbose : Boolean; const aHex : Boolean = false; const aBase64 : Boolean = false ) : TOperationResult;
 Var
-  lLines     : TStringList;
-  lEncoding  : TEncodingType;
-  lStart     : Integer;
-  lEnd       : Integer;
-  i          : Integer;
-  lLineNum   : string;
-  lMaxDigits : Integer;
-  lOutput    : TStringList;
+  lLines      : TStringList;
+  lEncoding   : TEncodingType;
+  lStart      : Integer;
+  lEnd        : Integer;
+  i           : Integer;
+  lLineNum    : string;
+  lMaxDigits  : Integer;
+  lOutput     : TStringList;
+  lFileStream : TFileStream;
+  lBytes      : TBytes;
+  lByteStart  : Integer;
+  lByteEnd    : Integer;
+  lHexLine    : string;
+  lAsciiLine  : string;
+  lByte       : Byte;
 begin
   Result.Success      := false;
   Result.ErrorMessage := '';
@@ -650,6 +675,112 @@ begin
       Exit;
     end;
 
+  // Hex oder Base64 Modus: Lese Raw-Bytes
+  if aHex or aBase64 then
+    begin
+      lFileStream := TFileStream.Create( aFilePath, fmOpenRead or fmShareDenyWrite );
+      try
+        SetLength( lBytes, lFileStream.Size );
+
+        if lFileStream.Size > 0 then
+          lFileStream.Read( lBytes[ 0 ], lFileStream.Size );
+
+        if aVerbose then
+          begin
+            WriteLn( 'File: ' + aFilePath );
+            WriteLn( 'Size: ' + IntToStr( Length( lBytes ) ) + ' bytes' );
+            WriteLn;
+          end;
+
+        if Length( lBytes ) = 0 then
+          begin
+            Result.Success    := true;
+            Result.OutputText := '';
+            Exit;
+          end;
+
+        // Berechne Byte-Bereich (--head und --tail beziehen sich auf Bytes)
+        lByteStart := 0;
+        lByteEnd   := Length( lBytes ) - 1;
+
+        if aHead > 0 then
+          lByteEnd := Min( aHead - 1, Length( lBytes ) - 1 );
+
+        if aTail > 0 then
+          lByteStart := Max( 0, Length( lBytes ) - aTail );
+
+        if aBase64 then
+          begin
+            // Base64-Modus: Gib Bytes als Base64-String aus
+            if ( lByteStart = 0 ) and ( lByteEnd = Length( lBytes ) - 1 )
+              then Result.OutputText := TNetEncoding.Base64.EncodeBytesToString( lBytes )
+              else begin
+                     // Nur einen Teil als Base64 ausgeben
+                     var lPartBytes : TBytes;
+                     SetLength( lPartBytes, lByteEnd - lByteStart + 1 );
+                     Move( lBytes[ lByteStart ], lPartBytes[ 0 ], Length( lPartBytes ) );
+                     Result.OutputText := TNetEncoding.Base64.EncodeBytesToString( lPartBytes );
+                   end;
+
+            WriteLn( Result.OutputText );
+          end
+        else begin
+               // Hex-Dump-Modus
+               lOutput := TStringList.Create;
+               try
+                 i := lByteStart;
+
+                 while i <= lByteEnd do
+                   begin
+                     lHexLine   := IntToHex( i, 8 ) + ': ';
+                     lAsciiLine := '';
+
+                     // 16 Bytes pro Zeile
+                     for var k := 0 to 15 do
+                       begin
+                         if i + k <= lByteEnd then
+                           begin
+                             lByte    := lBytes[ i + k ];
+                             lHexLine := lHexLine + IntToHex( lByte, 2 ) + ' ';
+
+                             // ASCII: Zeige druckbare Zeichen, sonst '.'
+                             if ( lByte >= 32 ) and ( lByte <= 126 )
+                               then lAsciiLine := lAsciiLine + Chr( lByte )
+                               else lAsciiLine := lAsciiLine + '.';
+                           end
+                         else begin
+                                lHexLine   := lHexLine + '   ';
+                                lAsciiLine := lAsciiLine + ' ';
+                              end;
+
+                         // Leerzeichen nach 8 Bytes zur besseren Lesbarkeit
+                         if k = 7 then
+                           lHexLine := lHexLine + ' ';
+                       end;
+
+                     lOutput.Add( lHexLine + ' ' + lAsciiLine );
+                     Inc( i, 16 );
+                   end;
+
+                 Result.OutputText := lOutput.Text;
+                 if Result.OutputText.EndsWith( #13#10 ) then
+                   Result.OutputText := Copy( Result.OutputText, 1, Length( Result.OutputText ) - 2 );
+
+                 WriteLn( Result.OutputText );
+               finally
+                 lOutput.Free;
+               end;
+             end;
+
+        Result.Success := true;
+      finally
+        lFileStream.Free;
+      end;
+
+      Exit;
+    end;
+
+  // Standard-Modus: Lese über TEncodingHelper (encoding-aware)
   lLines  := TStringList.Create;
   lOutput := TStringList.Create;
   try
@@ -1480,6 +1611,239 @@ begin
 
     if lToOriginal <> NIL then
       lToOriginal.Free;
+  end;
+end;
+
+class function TStringOperations.IndentLines( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aSpaces : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+Var
+  lLines    : TStringList;
+  lOriginal : TStringList;
+  lEncoding : TEncodingType;
+  lIndent   : string;
+  i         : Integer;
+begin
+  Result.Success      := false;
+  Result.ErrorMessage := '';
+  Result.LinesChanged := 0;
+
+  if not FileExists( aFilePath ) then
+    begin
+      Result.ErrorMessage := 'File not found: ' + aFilePath;
+      Exit;
+    end;
+
+  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+    begin
+      Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
+      Exit;
+    end;
+
+  lOriginal := NIL;
+
+  try
+    if ( aStartLine < 1 ) or ( aStartLine > lLines.Count ) then
+      begin
+        Result.ErrorMessage := 'Start line ' + IntToStr( aStartLine ) + ' out of range (1-' + IntToStr( lLines.Count ) + ')';
+        Exit;
+      end;
+
+    if ( aEndLine < aStartLine ) or ( aEndLine > lLines.Count ) then
+      begin
+        Result.ErrorMessage := 'End line ' + IntToStr( aEndLine ) + ' out of range (' + IntToStr( aStartLine ) + '-' + IntToStr( lLines.Count ) + ')';
+        Exit;
+      end;
+
+    // Create indent string
+    lIndent := StringOfChar( ' ', aSpaces );
+
+    // Save original for diff
+    if aDiff or aDryRun then
+      begin
+        lOriginal := TStringList.Create;
+        lOriginal.Assign( lLines );
+      end;
+
+    // Indent lines (0-based index)
+    for i := aStartLine - 1 to aEndLine - 1 do
+      begin
+        // Only indent non-empty lines
+        if lLines[ i ] <> '' then
+          lLines[ i ] := lIndent + lLines[ i ];
+      end;
+
+    Result.LinesChanged := aEndLine - aStartLine + 1;
+
+    // Show diff if requested
+    if aDiff and ( lOriginal <> NIL ) then
+      begin
+        WriteLn( '--- ', aFilePath, ' (original)' );
+        WriteLn( '+++ ', aFilePath, ' (indented)' );
+
+        for i := aStartLine - 1 to aEndLine - 1 do
+          begin
+            WriteLn( '- ', lOriginal[ i ] );
+            WriteLn( '+ ', lLines[ i ] );
+          end;
+      end;
+
+    if aDryRun then
+      begin
+        if aVerbose then
+          WriteLn( '[DRY-RUN] Would indent lines ', aStartLine, '-', aEndLine, ' by ', aSpaces, ' spaces in ', aFilePath );
+
+        Result.Success := true;
+        Exit;
+      end;
+
+    // Create backup if requested
+    if aBackup then
+      begin
+        if not CreateBackup( aFilePath ) then
+          begin
+            Result.ErrorMessage := 'Failed to create backup for: ' + aFilePath;
+            Exit;
+          end;
+      end;
+
+    // Write file
+    if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+      begin
+        Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
+        Exit;
+      end;
+
+    if aVerbose then
+      WriteLn( 'SUCCESS: Indented lines ', aStartLine, '-', aEndLine, ' by ', aSpaces, ' spaces in ', aFilePath );
+
+    Result.Success := true;
+  finally
+    lLines.Free;
+
+    if lOriginal <> NIL then
+      lOriginal.Free;
+  end;
+end;
+
+class function TStringOperations.UnindentLines( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aSpaces : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+Var
+  lLines       : TStringList;
+  lOriginal    : TStringList;
+  lEncoding    : TEncodingType;
+  lLine        : string;
+  lLeadSpaces  : Integer;
+  lRemoveCount : Integer;
+  i, k         : Integer;
+begin
+  Result.Success      := false;
+  Result.ErrorMessage := '';
+  Result.LinesChanged := 0;
+
+  if not FileExists( aFilePath ) then
+    begin
+      Result.ErrorMessage := 'File not found: ' + aFilePath;
+      Exit;
+    end;
+
+  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+    begin
+      Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
+      Exit;
+    end;
+
+  lOriginal := NIL;
+
+  try
+    if ( aStartLine < 1 ) or ( aStartLine > lLines.Count ) then
+      begin
+        Result.ErrorMessage := 'Start line ' + IntToStr( aStartLine ) + ' out of range (1-' + IntToStr( lLines.Count ) + ')';
+        Exit;
+      end;
+
+    if ( aEndLine < aStartLine ) or ( aEndLine > lLines.Count ) then
+      begin
+        Result.ErrorMessage := 'End line ' + IntToStr( aEndLine ) + ' out of range (' + IntToStr( aStartLine ) + '-' + IntToStr( lLines.Count ) + ')';
+        Exit;
+      end;
+
+    // Save original for diff
+    if aDiff or aDryRun then
+      begin
+        lOriginal := TStringList.Create;
+        lOriginal.Assign( lLines );
+      end;
+
+    // Unindent lines (0-based index)
+    for i := aStartLine - 1 to aEndLine - 1 do
+      begin
+        lLine := lLines[ i ];
+
+        // Count leading spaces
+        lLeadSpaces := 0;
+
+        for k := 1 to Length( lLine ) do
+          begin
+            if lLine[ k ] = ' '
+              then Inc( lLeadSpaces )
+              else Break;
+          end;
+
+        // Remove up to aSpaces spaces
+        lRemoveCount := Min( lLeadSpaces, aSpaces );
+
+        if lRemoveCount > 0 then
+          lLines[ i ] := Copy( lLine, lRemoveCount + 1, MaxInt );
+      end;
+
+    Result.LinesChanged := aEndLine - aStartLine + 1;
+
+    // Show diff if requested
+    if aDiff and ( lOriginal <> NIL ) then
+      begin
+        WriteLn( '--- ', aFilePath, ' (original)' );
+        WriteLn( '+++ ', aFilePath, ' (unindented)' );
+
+        for i := aStartLine - 1 to aEndLine - 1 do
+          begin
+            WriteLn( '- ', lOriginal[ i ] );
+            WriteLn( '+ ', lLines[ i ] );
+          end;
+      end;
+
+    if aDryRun then
+      begin
+        if aVerbose then
+          WriteLn( '[DRY-RUN] Would unindent lines ', aStartLine, '-', aEndLine, ' by ', aSpaces, ' spaces in ', aFilePath );
+
+        Result.Success := true;
+        Exit;
+      end;
+
+    // Create backup if requested
+    if aBackup then
+      begin
+        if not CreateBackup( aFilePath ) then
+          begin
+            Result.ErrorMessage := 'Failed to create backup for: ' + aFilePath;
+            Exit;
+          end;
+      end;
+
+    // Write file
+    if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+      begin
+        Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
+        Exit;
+      end;
+
+    if aVerbose then
+      WriteLn( 'SUCCESS: Unindented lines ', aStartLine, '-', aEndLine, ' by ', aSpaces, ' spaces in ', aFilePath );
+
+    Result.Success := true;
+  finally
+    lLines.Free;
+
+    if lOriginal <> NIL then
+      lOriginal.Free;
   end;
 end;
 

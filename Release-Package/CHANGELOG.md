@@ -4,6 +4,103 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.8.2] - 2026-01-26
+
+### Added
+- **Indent Lines (`--indent-lines`)**: Add spaces at the beginning of lines
+  - Parameters: `--file`, `--start-line`, `--end-line`, `--spaces` (default: 2)
+  - Supports: `--backup`, `--dry-run`, `--diff`, `--verbose`
+  - Empty lines are skipped (no spaces added to empty lines)
+  - JSON config: `"command": "indent"` or `"command": "indent-lines"`
+
+- **Unindent Lines (`--unindent-lines`)**: Remove spaces from the beginning of lines
+  - Parameters: `--file`, `--start-line`, `--end-line`, `--spaces` (default: 2)
+  - Supports: `--backup`, `--dry-run`, `--diff`, `--verbose`
+  - Partial unindent: If line has fewer spaces than requested, removes only available spaces
+  - JSON config: `"command": "unindent"` or `"command": "unindent-lines"`
+
+- **BatchProcessor Support**: Indent/Unindent work in batch mode with original line numbers
+
+### Fixed
+- **Build-StrEditor-Release.bat**: Now actually copies to `C:\Delphi XE16\bin\` (was only announced but not executed)
+
+### Tests
+- 13 new unit tests for indent/unindent features
+- 182 total tests passing
+
+---
+
+## [1.8.1] - 2026-01-26
+
+### Added
+- **Hex-Dump Output (`--hex`)**: Display file content as hex dump
+  - Format: `OFFSET: HH HH HH HH HH HH HH HH  HH HH HH HH HH HH HH HH  ASCII`
+  - 16 bytes per line with space after 8th byte for readability
+  - ASCII representation shows printable characters (32-126), others as `.`
+  - Use case: Encoding debugging (e.g., `F6` = Windows-1252 ö, `C3 B6` = UTF-8 ö)
+
+- **Base64 Output (`--base64`)**: Display file content as Base64 string
+  - Use case: Transport file content for tests or copy/paste
+  - Use case: Embed binary data in JSON configs
+
+- **Byte-based Head/Tail**: In hex and base64 modes, `--head` and `--tail` operate on **byte offsets**, not line numbers
+  - Example: `--show --hex --head 64` shows first 64 bytes
+  - Example: `--show --base64 --tail 32` shows last 32 bytes as Base64
+
+### Fixed
+- **TrailingLineBreak Preservation**: Files without trailing CRLF are now correctly preserved
+  - Previously, `TStringList.Text` always added CRLF at end
+  - Now detects original state and preserves it
+
+- **Original Line Numbers in BatchProcessor**: All line numbers in JSON configs now refer to the **original file state**
+  - BatchProcessor internally tracks offsets and adjusts line numbers
+  - Makes complex refactoring configs much easier to create
+
+- **UTF-8 JSON Config Reading**: JSON configs are now explicitly read as UTF-8
+  - Fixes issues with umlauts in JSON config files
+
+### Tests
+- 10 new unit tests for hex/base64 features
+- 169 total tests passing
+
+---
+
+## [1.8.0] - 2026-01-23
+
+### Added
+- **`text-lines` Array**: Multi-line text in JSON without escaping issues
+  - Use `"text-lines": ["Line 1", "Line 2"]` instead of `"text": "Line1\r\nLine2"`
+  - Lines are automatically joined with CRLF
+  - Recommended for all multi-line insertions
+
+- **`replace-lines` Command**: Replace line ranges in JSON config
+  - New command type for atomic line range replacement
+
+- **Parameter Aliases**: Shorter parameter names for common operations
+  - `--ib` = `--insert-before-line`
+  - `--ia` = `--insert-after-line`
+  - `--dl` = `--delete-line`
+  - `--rl` = `--replace-line`
+  - `--ob64` = `--old-str-base64`
+  - `--nb64` = `--new-str-base64`
+
+- **Categorized Help**: Help system organized by categories
+  - `--help` shows compact overview with categories
+  - `--help <category>` shows focused help (replace, insert, delete, show, encoding, config, move, repair, all)
+
+- **Warning for `\r\n` Literal**: Detects when user accidentally uses literal `\r\n` (4 characters) instead of real CRLF
+  - Shows warning on stderr with recommendation to use `text-lines` or base64
+
+### Documentation
+- New Agent Cookbook: `DOC/AGENT-COOKBOOK.md` with practical recipes
+- Removed duplicate `DOC/AUGMENT-RULES.md`
+- Updated `.augment/rules/str-replace-editor.md` with decision checklist
+
+### Tests
+- 23 new unit tests for v1.8.0 features
+
+---
+
 ## [1.7.7] - 2026-01-20
 
 ### Fixed

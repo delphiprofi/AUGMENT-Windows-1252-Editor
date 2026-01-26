@@ -1,8 +1,8 @@
 # AUGMENT-Windows-1252-Editor
 This is a replacement for the built-in str-replace-editor, if you are dealing with legacy code that is not UTF-8 and cannot be migrated!
 
-**Version:** 1.7.7
-**Last Updated:** 2026-01-20
+**Version:** 1.8.2
+**Last Updated:** 2026-01-26
 **License:** MIT License - see [LICENSE.md](LICENSE.md)
 
 ---
@@ -49,6 +49,16 @@ StrEditor is a command-line tool for replacing and inserting text in Delphi sour
 - ✅ **Repair Umlauts**: Automatically repair broken umlauts (`--repair-umlauts`) **[NEW in v1.7.4]**
 - ✅ **Move Lines**: Move source code lines between files (`--move-lines`) **[NEW in v1.7.5]**
 - ✅ **Delete Config on Success**: Auto-delete JSON config after success (`--delete-config-on-success`) **[NEW in v1.7.6]**
+- ✅ **Indent Lines**: Add spaces at line beginnings (`--indent-lines`) **[NEW in v1.8.2]**
+- ✅ **Unindent Lines**: Remove spaces from line beginnings (`--unindent-lines`) **[NEW in v1.8.2]**
+- ✅ **Hex-Dump Output**: Display file as hex dump for encoding debugging (`--hex`) **[NEW in v1.8.1]**
+- ✅ **Base64 Output**: Display file as Base64 string (`--base64`) **[NEW in v1.8.1]**
+- ✅ **Original Line Numbers**: JSON config line numbers refer to original file state **[NEW in v1.8.1]**
+- ✅ **text-lines Array**: Multi-line text in JSON without escaping **[NEW in v1.8.0]**
+- ✅ **replace-lines Command**: Replace line ranges atomically in JSON **[NEW in v1.8.0]**
+- ✅ **Literal \r\n Warning**: Warns when agent uses \r\n incorrectly **[NEW in v1.8.0]**
+- ✅ **Categorized Help**: Compact help with `--help [category]` **[NEW in v1.8.0]**
+- ✅ **Parameter Aliases**: Short names: `--ib`, `--ia`, `--dl`, `--rl`, `--ob64`, `--nb64` **[NEW in v1.8.0]**
 - ✅ **Show/Cat Command**: Display file content with encoding awareness (`--show`) **[NEW in v1.2]**
 - ✅ **Umlaut-Support**: German umlauts (ü, ö, ä, ß) are correctly handled
 - ✅ **String-Replace**: Exact string replacement with optional line ranges
@@ -156,7 +166,7 @@ StrEditor.exe --file "test.pas" --old-str "interface" --new-str "interface // Li
 
 For complete documentation, see:
 - [DOC/INTEGRATION.md](DOC/INTEGRATION.md) - Full integration guide
-- [DOC/AUGMENT-RULES.md](DOC/AUGMENT-RULES.md) - Rules for Augment Agent integration
+- [DOC/AGENT-COOKBOOK.md](DOC/AGENT-COOKBOOK.md) - Practical recipes for common tasks **[NEW in v1.8.0]**
 - [CHANGELOG.md](CHANGELOG.md) - Version history
 
 ---
@@ -176,9 +186,9 @@ For complete documentation, see:
 
 The project includes comprehensive unit tests:
 
-**Test Results (v1.6.0):**
-- ✅ 76 tests implemented
-- ✅ 76 tests passing
+**Test Results (v1.8.2):**
+- ✅ 182 tests implemented
+- ✅ 182 tests passing
 - ✅ 0 tests failing
 
 ---
@@ -191,20 +201,20 @@ DelphiStrEditor/
 ├── StrEditor.dproj                  # Project file
 ├── StrEditor.Encoding.pas           # Encoding support
 ├── StrEditor.Operations.pas         # String operations
-├── StrEditor.CommandLine.pas        # Command-line interface
-├── StrEditor.CaseConversion.pas     # Case conversion (v1.1)
-├── StrEditor.Conditional.pas        # Conditional replacements (v1.1)
-├── StrEditor.Config.pas             # JSON config support (v1.1)
-├── StrEditor.Indent.pas             # Indent/outdent (v1.1)
-├── StrEditor.Undo.pas               # Undo support (v1.1)
+├── StrEditor.CommandLine.pas        # Command-line & help system
+├── StrEditor.Config.pas             # JSON config support
+├── StrEditor.BatchProcessor.pas     # Batch/JSON operations (v1.7+)
+├── StrEditor.Repair.pas             # Umlaut repair (v1.7.4+)
 ├── Tests/
 │   ├── Unittests.dpr                # Unit test program
-│   ├── Unittests.dproj              # Unit test project
-│   ├── TestStrEditor.Encoding.pas   # Encoding tests
-│   └── TestStrEditor.Operations.pas # Operations tests
+│   ├── TestStrEditor.Operations.pas # Operations tests
+│   ├── TestStrEditor.V180.pas       # v1.8.0 feature tests
+│   └── ...                          # More test files
 ├── DOC/
 │   ├── INTEGRATION.md               # Full integration guide
-│   └── AUGMENT-RULES.md             # Augment Agent rules
+│   └── AGENT-COOKBOOK.md            # Practical recipes (v1.8.0)
+├── .augment/rules/
+│   └── str-replace-editor.md        # Augment Agent rules
 ├── CHANGELOG.md                     # Version history
 └── README.md                        # This file
 ```
@@ -228,14 +238,7 @@ DelphiStrEditor/
 
 ## 📄 License
 
-© 2025 Frank Lauter ( DelphiProfi ) 
-http://www.delphiprofi.com
-
----
-
-## 📄 License
-
-MIT License - Copyright (c) 2025 Frank Lauter (DelphiProfi)
+MIT License - Copyright (c) 2025-2026 Frank Lauter (DelphiProfi)
 
 See [LICENSE.md](LICENSE.md) for full license text.
 

@@ -94,6 +94,36 @@ Type
       procedure TestShow_SingleLine;
 
       [Test]
+      procedure TestShow_Hex_BasicOutput;
+
+      [Test]
+      procedure TestShow_Hex_WithUmlauts;
+
+      [Test]
+      procedure TestShow_Hex_Head;
+
+      [Test]
+      procedure TestShow_Hex_Tail;
+
+      [Test]
+      procedure TestShow_Hex_EmptyFile;
+
+      [Test]
+      procedure TestShow_Base64_BasicOutput;
+
+      [Test]
+      procedure TestShow_Base64_WithUmlauts;
+
+      [Test]
+      procedure TestShow_Base64_Head;
+
+      [Test]
+      procedure TestShow_Base64_Tail;
+
+      [Test]
+      procedure TestShow_Base64_EmptyFile;
+
+      [Test]
       procedure TestConvertEncoding_UTF8ToWindows1252;
 
       [Test]
@@ -260,6 +290,46 @@ Type
 
       [Test]
       procedure TestDeleteConfigOnSuccess_DryRun;
+
+      // Indent/Unindent Tests
+      [Test]
+      procedure TestIndentLines_Basic;
+
+      [Test]
+      procedure TestIndentLines_CustomSpaces;
+
+      [Test]
+      procedure TestIndentLines_EmptyLines;
+
+      [Test]
+      procedure TestIndentLines_SingleLine;
+
+      [Test]
+      procedure TestIndentLines_InvalidRange;
+
+      [Test]
+      procedure TestIndentLines_DryRun;
+
+      [Test]
+      procedure TestUnindentLines_Basic;
+
+      [Test]
+      procedure TestUnindentLines_PartialUnindent;
+
+      [Test]
+      procedure TestUnindentLines_NoLeadingSpaces;
+
+      [Test]
+      procedure TestUnindentLines_SingleLine;
+
+      [Test]
+      procedure TestUnindentLines_InvalidRange;
+
+      [Test]
+      procedure TestUnindentLines_DryRun;
+
+      [Test]
+      procedure TestIndentUnindent_Roundtrip;
   end;
 
 implementation
@@ -662,6 +732,170 @@ begin
 
   Assert.IsTrue( lResult.Success, 'Show should succeed' );
   Assert.AreEqual( 'Single Line', lResult.OutputText, 'Should show single line' );
+end;
+
+procedure TTestStringOperations.TestShow_Hex_BasicOutput;
+Var
+  lResult : TOperationResult;
+begin
+  // Erstelle Datei mit bekannten Bytes: "ABC" = 41 42 43
+  CreateTestFile( 'ABC', etWindows1252 );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 0, false, false, false, true, false );
+
+  Assert.IsTrue( lResult.Success, 'Show --hex should succeed' );
+  Assert.IsTrue( lResult.OutputText.Contains( '00000000:' ), 'Should contain offset 00000000' );
+  Assert.IsTrue( lResult.OutputText.Contains( '41' ), 'Should contain hex for A (41)' );
+  Assert.IsTrue( lResult.OutputText.Contains( '42' ), 'Should contain hex for B (42)' );
+  Assert.IsTrue( lResult.OutputText.Contains( '43' ), 'Should contain hex for C (43)' );
+  Assert.IsTrue( lResult.OutputText.Contains( 'ABC' ), 'Should contain ASCII representation' );
+end;
+
+procedure TTestStringOperations.TestShow_Hex_WithUmlauts;
+Var
+  lResult : TOperationResult;
+  lBytes  : TBytes;
+begin
+  // Erstelle Datei mit Windows-1252 Umlauten: ö = F6, ä = E4, ü = FC
+  lBytes := TBytes.Create( $F6, $E4, $FC );
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 0, false, false, false, true, false );
+
+  Assert.IsTrue( lResult.Success, 'Show --hex should succeed' );
+  Assert.IsTrue( lResult.OutputText.Contains( 'F6' ), 'Should contain hex for ö (F6)' );
+  Assert.IsTrue( lResult.OutputText.Contains( 'E4' ), 'Should contain hex for ä (E4)' );
+  Assert.IsTrue( lResult.OutputText.Contains( 'FC' ), 'Should contain hex for ü (FC)' );
+end;
+
+procedure TTestStringOperations.TestShow_Hex_Head;
+Var
+  lResult : TOperationResult;
+  lBytes  : TBytes;
+begin
+  // Erstelle Datei mit 32 Bytes
+  SetLength( lBytes, 32 );
+
+  for var i := 0 to 31 do
+    lBytes[ i ] := i + $41; // A, B, C, ...
+
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  // Nur erste 16 Bytes anzeigen
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 16, 0, false, false, false, true, false );
+
+  Assert.IsTrue( lResult.Success, 'Show --hex --head should succeed' );
+  Assert.IsTrue( lResult.OutputText.Contains( '41' ), 'Should contain first byte (41)' );
+  Assert.IsTrue( lResult.OutputText.Contains( '50' ), 'Should contain byte 16 (50 = P)' );
+  // Sollte NICHT die zweite Zeile enthalten
+  Assert.IsFalse( lResult.OutputText.Contains( '00000010:' ), 'Should NOT contain second line offset' );
+end;
+
+procedure TTestStringOperations.TestShow_Hex_Tail;
+Var
+  lResult : TOperationResult;
+  lBytes  : TBytes;
+begin
+  // Erstelle Datei mit 32 Bytes
+  SetLength( lBytes, 32 );
+
+  for var i := 0 to 31 do
+    lBytes[ i ] := i + $41; // A, B, C, ...
+
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  // Nur letzte 8 Bytes anzeigen (Bytes 24-31 = Y, Z, [, \, ], ^, _, `)
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 8, false, false, false, true, false );
+
+  Assert.IsTrue( lResult.Success, 'Show --hex --tail should succeed' );
+  Assert.IsTrue( lResult.OutputText.Contains( '00000018:' ), 'Should contain offset for byte 24' );
+  Assert.IsTrue( lResult.OutputText.Contains( '59' ), 'Should contain hex for Y (59)' );
+  Assert.IsTrue( lResult.OutputText.Contains( '60' ), 'Should contain hex for ` (60)' );
+end;
+
+procedure TTestStringOperations.TestShow_Hex_EmptyFile;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( '', etWindows1252 );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 0, false, false, false, true, false );
+
+  Assert.IsTrue( lResult.Success, 'Show --hex on empty file should succeed' );
+  Assert.AreEqual( '', lResult.OutputText, 'Should return empty string for empty file' );
+end;
+
+procedure TTestStringOperations.TestShow_Base64_BasicOutput;
+Var
+  lResult : TOperationResult;
+  lBytes  : TBytes;
+begin
+  // "ABC" in Base64 = "QUJD" - direkt Bytes schreiben ohne CRLF
+  lBytes := TBytes.Create( $41, $42, $43 ); // ABC
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 0, false, false, false, false, true );
+
+  Assert.IsTrue( lResult.Success, 'Show --base64 should succeed' );
+  Assert.AreEqual( 'QUJD', lResult.OutputText, 'ABC should encode to QUJD' );
+end;
+
+procedure TTestStringOperations.TestShow_Base64_WithUmlauts;
+Var
+  lResult : TOperationResult;
+  lBytes  : TBytes;
+begin
+  // Windows-1252 Umlaute: ö ä ü = F6 E4 FC
+  // Base64 von F6 E4 FC = "9uT8"
+  lBytes := TBytes.Create( $F6, $E4, $FC );
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 0, false, false, false, false, true );
+
+  Assert.IsTrue( lResult.Success, 'Show --base64 should succeed' );
+  Assert.AreEqual( '9uT8', lResult.OutputText, 'F6 E4 FC should encode to 9uT8' );
+end;
+
+procedure TTestStringOperations.TestShow_Base64_Head;
+Var
+  lResult : TOperationResult;
+  lBytes  : TBytes;
+begin
+  // "ABCDEF" - nur erste 3 Bytes = "ABC" = "QUJD" - direkt Bytes schreiben ohne CRLF
+  lBytes := TBytes.Create( $41, $42, $43, $44, $45, $46 ); // ABCDEF
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 3, 0, false, false, false, false, true );
+
+  Assert.IsTrue( lResult.Success, 'Show --base64 --head should succeed' );
+  Assert.AreEqual( 'QUJD', lResult.OutputText, 'First 3 bytes (ABC) should encode to QUJD' );
+end;
+
+procedure TTestStringOperations.TestShow_Base64_Tail;
+Var
+  lResult : TOperationResult;
+  lBytes  : TBytes;
+begin
+  // "ABCDEF" - nur letzte 3 Bytes = "DEF" = "REVG" - direkt Bytes schreiben ohne CRLF
+  lBytes := TBytes.Create( $41, $42, $43, $44, $45, $46 ); // ABCDEF
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 3, false, false, false, false, true );
+
+  Assert.IsTrue( lResult.Success, 'Show --base64 --tail should succeed' );
+  Assert.AreEqual( 'REVG', lResult.OutputText, 'Last 3 bytes (DEF) should encode to REVG' );
+end;
+
+procedure TTestStringOperations.TestShow_Base64_EmptyFile;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( '', etWindows1252 );
+
+  lResult := TStringOperations.Show( fTestFilePath, 0, 0, 0, 0, false, false, false, false, true );
+
+  Assert.IsTrue( lResult.Success, 'Show --base64 on empty file should succeed' );
+  Assert.AreEqual( '', lResult.OutputText, 'Should return empty string for empty file' );
 end;
 
 procedure TTestStringOperations.TestConvertEncoding_UTF8ToWindows1252;
@@ -2263,6 +2497,339 @@ begin
 
     if FileExists( lConfigPath ) then
       DeleteFile( lConfigPath );
+  end;
+end;
+
+procedure TTestStringOperations.TestIndentLines_Basic;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  // Arrange: 4 Zeilen, Zeilen 2-3 sollen um 2 Spaces eingerückt werden
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3' + #13#10 + 'Line 4', etWindows1252 );
+
+  // Act
+  lResult := TStringOperations.IndentLines( fTestFilePath, 2, 3, 2 );
+
+  // Assert
+  Assert.IsTrue( lResult.Success, 'IndentLines should succeed' );
+  Assert.AreEqual( 2, lResult.LinesChanged, 'Should change 2 lines' );
+
+  lLines := TStringList.Create;
+  try
+    TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should be unchanged' );
+    Assert.AreEqual( '  Line 2', lLines[ 1 ], 'Line 2 should be indented' );
+    Assert.AreEqual( '  Line 3', lLines[ 2 ], 'Line 3 should be indented' );
+    Assert.AreEqual( 'Line 4', lLines[ 3 ], 'Line 4 should be unchanged' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestIndentLines_CustomSpaces;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  // Arrange: Indent mit 4 Spaces
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2', etWindows1252 );
+
+  // Act
+  lResult := TStringOperations.IndentLines( fTestFilePath, 1, 2, 4 );
+
+  // Assert
+  Assert.IsTrue( lResult.Success, 'IndentLines should succeed' );
+
+  lLines := TStringList.Create;
+  try
+    TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+    Assert.AreEqual( '    Line 1', lLines[ 0 ], 'Line 1 should be indented by 4 spaces' );
+    Assert.AreEqual( '    Line 2', lLines[ 1 ], 'Line 2 should be indented by 4 spaces' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestIndentLines_EmptyLines;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  // Arrange: Datei mit leeren Zeilen
+  CreateTestFile( 'Line 1' + #13#10 + '' + #13#10 + 'Line 3', etWindows1252 );
+
+  // Act
+  lResult := TStringOperations.IndentLines( fTestFilePath, 1, 3, 2 );
+
+  // Assert
+  Assert.IsTrue( lResult.Success, 'IndentLines should succeed' );
+  Assert.AreEqual( 3, lResult.LinesChanged, 'Should report 3 lines in range' );
+
+  lLines := TStringList.Create;
+  try
+    TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+    Assert.AreEqual( '  Line 1', lLines[ 0 ], 'Line 1 should be indented' );
+    Assert.AreEqual( '', lLines[ 1 ], 'Empty line should stay empty' );
+    Assert.AreEqual( '  Line 3', lLines[ 2 ], 'Line 3 should be indented' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestIndentLines_SingleLine;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  // Arrange: Nur eine Zeile einrücken
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  // Act
+  lResult := TStringOperations.IndentLines( fTestFilePath, 2, 2, 2 );
+
+  // Assert
+  Assert.IsTrue( lResult.Success, 'IndentLines should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should change 1 line' );
+
+  lLines := TStringList.Create;
+  try
+    TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should be unchanged' );
+    Assert.AreEqual( '  Line 2', lLines[ 1 ], 'Line 2 should be indented' );
+    Assert.AreEqual( 'Line 3', lLines[ 2 ], 'Line 3 should be unchanged' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestIndentLines_InvalidRange;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2', etWindows1252 );
+
+  // Act
+  lResult := TStringOperations.IndentLines( fTestFilePath, 1, 10, 2 );
+
+  // Assert
+  Assert.IsFalse( lResult.Success, 'IndentLines should fail for invalid range' );
+  Assert.IsTrue( Pos( 'out of range', lResult.ErrorMessage ) > 0, 'Error should mention out of range' );
+end;
+
+procedure TTestStringOperations.TestIndentLines_DryRun;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2', etWindows1252 );
+
+  // Act - dry-run
+  lResult := TStringOperations.IndentLines( fTestFilePath, 1, 2, 2, true );
+
+  // Assert
+  Assert.IsTrue( lResult.Success, 'IndentLines dry-run should succeed' );
+  Assert.AreEqual( 2, lResult.LinesChanged, 'Should report 2 lines would change' );
+
+  // Datei sollte unverändert sein
+  lLines := TStringList.Create;
+  try
+    TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should be unchanged in dry-run' );
+    Assert.AreEqual( 'Line 2', lLines[ 1 ], 'Line 2 should be unchanged in dry-run' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestUnindentLines_Basic;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  // Arrange: Zeilen mit 4 Spaces Einrückung
+  CreateTestFile( 'Line 1' + #13#10 + '    Line 2' + #13#10 + '    Line 3' + #13#10 + 'Line 4', etWindows1252 );
+
+  // Act
+  lResult := TStringOperations.UnindentLines( fTestFilePath, 2, 3, 2 );
+
+  // Assert
+  Assert.IsTrue( lResult.Success, 'UnindentLines should succeed' );
+  Assert.AreEqual( 2, lResult.LinesChanged, 'Should change 2 lines' );
+
+  lLines := TStringList.Create;
+  try
+    TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should be unchanged' );
+    Assert.AreEqual( '  Line 2', lLines[ 1 ], 'Line 2 should have 2 spaces removed' );
+    Assert.AreEqual( '  Line 3', lLines[ 2 ], 'Line 3 should have 2 spaces removed' );
+    Assert.AreEqual( 'Line 4', lLines[ 3 ], 'Line 4 should be unchanged' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestUnindentLines_PartialUnindent;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  // Arrange: Zeile hat nur 2 Spaces, versuche 4 zu entfernen
+  CreateTestFile( '  Line 1' + #13#10 + '    Line 2', etWindows1252 );
+
+  // Act - versuche 4 Spaces zu entfernen
+  lResult := TStringOperations.UnindentLines( fTestFilePath, 1, 2, 4 );
+
+  // Assert
+  Assert.IsTrue( lResult.Success, 'UnindentLines should succeed' );
+
+  lLines := TStringList.Create;
+  try
+    TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should have only 2 spaces removed (partial)' );
+    Assert.AreEqual( 'Line 2', lLines[ 1 ], 'Line 2 should have all 4 spaces removed' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestUnindentLines_NoLeadingSpaces;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  // Arrange: Zeilen ohne führende Spaces
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2', etWindows1252 );
+
+  // Act
+  lResult := TStringOperations.UnindentLines( fTestFilePath, 1, 2, 2 );
+
+  // Assert
+  Assert.IsTrue( lResult.Success, 'UnindentLines should succeed (no changes needed)' );
+  Assert.AreEqual( 2, lResult.LinesChanged, 'Should report 2 lines in range' );
+
+  lLines := TStringList.Create;
+  try
+    TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should be unchanged' );
+    Assert.AreEqual( 'Line 2', lLines[ 1 ], 'Line 2 should be unchanged' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestUnindentLines_SingleLine;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  // Arrange
+  CreateTestFile( 'Line 1' + #13#10 + '  Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  // Act
+  lResult := TStringOperations.UnindentLines( fTestFilePath, 2, 2, 2 );
+
+  // Assert
+  Assert.IsTrue( lResult.Success, 'UnindentLines should succeed' );
+  Assert.AreEqual( 1, lResult.LinesChanged, 'Should change 1 line' );
+
+  lLines := TStringList.Create;
+  try
+    TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should be unchanged' );
+    Assert.AreEqual( 'Line 2', lLines[ 1 ], 'Line 2 should be unindented' );
+    Assert.AreEqual( 'Line 3', lLines[ 2 ], 'Line 3 should be unchanged' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestUnindentLines_InvalidRange;
+Var
+  lResult : TOperationResult;
+begin
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2', etWindows1252 );
+
+  // Act
+  lResult := TStringOperations.UnindentLines( fTestFilePath, 1, 10, 2 );
+
+  // Assert
+  Assert.IsFalse( lResult.Success, 'UnindentLines should fail for invalid range' );
+  Assert.IsTrue( Pos( 'out of range', lResult.ErrorMessage ) > 0, 'Error should mention out of range' );
+end;
+
+procedure TTestStringOperations.TestUnindentLines_DryRun;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  CreateTestFile( '  Line 1' + #13#10 + '  Line 2', etWindows1252 );
+
+  // Act - dry-run
+  lResult := TStringOperations.UnindentLines( fTestFilePath, 1, 2, 2, true );
+
+  // Assert
+  Assert.IsTrue( lResult.Success, 'UnindentLines dry-run should succeed' );
+  Assert.AreEqual( 2, lResult.LinesChanged, 'Should report 2 lines would change' );
+
+  // Datei sollte unverändert sein
+  lLines := TStringList.Create;
+  try
+    TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+    Assert.AreEqual( '  Line 1', lLines[ 0 ], 'Line 1 should be unchanged in dry-run' );
+    Assert.AreEqual( '  Line 2', lLines[ 1 ], 'Line 2 should be unchanged in dry-run' );
+  finally
+    lLines.Free;
+  end;
+end;
+
+procedure TTestStringOperations.TestIndentUnindent_Roundtrip;
+Var
+  lResult   : TOperationResult;
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  // Arrange: Original-Datei
+  CreateTestFile( 'Line 1' + #13#10 + 'Line 2' + #13#10 + 'Line 3', etWindows1252 );
+
+  // Act 1: Indent
+  lResult := TStringOperations.IndentLines( fTestFilePath, 1, 3, 4 );
+  Assert.IsTrue( lResult.Success, 'IndentLines should succeed' );
+
+  // Verify indented
+  lLines := TStringList.Create;
+  try
+    TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+    Assert.AreEqual( '    Line 1', lLines[ 0 ], 'Line 1 should be indented by 4' );
+    Assert.AreEqual( '    Line 2', lLines[ 1 ], 'Line 2 should be indented by 4' );
+    Assert.AreEqual( '    Line 3', lLines[ 2 ], 'Line 3 should be indented by 4' );
+  finally
+    lLines.Free;
+  end;
+
+  // Act 2: Unindent - sollte Original wiederherstellen
+  lResult := TStringOperations.UnindentLines( fTestFilePath, 1, 3, 4 );
+  Assert.IsTrue( lResult.Success, 'UnindentLines should succeed' );
+
+  // Verify original restored
+  lLines := TStringList.Create;
+  try
+    TEncodingHelper.ReadFile( fTestFilePath, lLines, lEncoding );
+    Assert.AreEqual( 'Line 1', lLines[ 0 ], 'Line 1 should be restored to original' );
+    Assert.AreEqual( 'Line 2', lLines[ 1 ], 'Line 2 should be restored to original' );
+    Assert.AreEqual( 'Line 3', lLines[ 2 ], 'Line 3 should be restored to original' );
+  finally
+    lLines.Free;
   end;
 end;
 

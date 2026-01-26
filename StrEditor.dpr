@@ -164,7 +164,7 @@ begin
             Exit;
           end;
 
-        lResult := TStringOperations.Show( aParams.FilePath, aParams.StartLine, aParams.EndLine, aParams.ShowHead, aParams.ShowTail, aParams.ShowLineNumbers, aParams.ShowRaw, aParams.Verbose );
+        lResult := TStringOperations.Show( aParams.FilePath, aParams.StartLine, aParams.EndLine, aParams.ShowHead, aParams.ShowTail, aParams.ShowLineNumbers, aParams.ShowRaw, aParams.Verbose, aParams.ShowHex, aParams.ShowBase64 );
 
         if not lResult.Success then
           begin
@@ -596,6 +596,60 @@ begin
           begin
             if not aParams.DryRun then
               WriteLn( 'SUCCESS: Moved ' + IntToStr( lResult.LinesChanged ) + ' line(s) from ' + aParams.FromFile + ' to ' + aParams.ToFile );
+
+            ExitCode := Ord( ecSuccess );
+          end
+        else begin
+               WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+
+               if Pos( 'File not found', lResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecFileNotFound )
+                 else ExitCode := Ord( ecOperationFailed );
+             end;
+      end;
+
+    ctIndent:
+      begin
+        if aParams.Verbose then
+          begin
+            if aParams.DryRun
+              then WriteLn( '[DRY-RUN] Indenting lines ' + IntToStr( aParams.StartLine ) + '-' + IntToStr( aParams.EndLine ) + ' by ' + IntToStr( aParams.IndentSpaces ) + ' spaces in ' + aParams.FilePath )
+              else WriteLn( 'Indenting lines ' + IntToStr( aParams.StartLine ) + '-' + IntToStr( aParams.EndLine ) + ' by ' + IntToStr( aParams.IndentSpaces ) + ' spaces in ' + aParams.FilePath );
+          end;
+
+        lResult := TStringOperations.IndentLines( aParams.FilePath, aParams.StartLine, aParams.EndLine, aParams.IndentSpaces, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.Verbose );
+
+        if lResult.Success then
+          begin
+            if not aParams.DryRun then
+              WriteLn( 'SUCCESS: Indented ' + IntToStr( lResult.LinesChanged ) + ' line(s) in ' + aParams.FilePath );
+
+            ExitCode := Ord( ecSuccess );
+          end
+        else begin
+               WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+
+               if Pos( 'File not found', lResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecFileNotFound )
+                 else ExitCode := Ord( ecOperationFailed );
+             end;
+      end;
+
+    ctUnindent:
+      begin
+        if aParams.Verbose then
+          begin
+            if aParams.DryRun
+              then WriteLn( '[DRY-RUN] Unindenting lines ' + IntToStr( aParams.StartLine ) + '-' + IntToStr( aParams.EndLine ) + ' by ' + IntToStr( aParams.IndentSpaces ) + ' spaces in ' + aParams.FilePath )
+              else WriteLn( 'Unindenting lines ' + IntToStr( aParams.StartLine ) + '-' + IntToStr( aParams.EndLine ) + ' by ' + IntToStr( aParams.IndentSpaces ) + ' spaces in ' + aParams.FilePath );
+          end;
+
+        lResult := TStringOperations.UnindentLines( aParams.FilePath, aParams.StartLine, aParams.EndLine, aParams.IndentSpaces, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.Verbose );
+
+        if lResult.Success then
+          begin
+            if not aParams.DryRun then
+              WriteLn( 'SUCCESS: Unindented ' + IntToStr( lResult.LinesChanged ) + ' line(s) in ' + aParams.FilePath );
 
             ExitCode := Ord( ecSuccess );
           end

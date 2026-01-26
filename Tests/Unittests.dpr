@@ -20,6 +20,7 @@ Uses
 , TestStrEditor.Config
 , TestStrEditor.Documentation
 , TestStrEditor.V180
+, TestStrEditor.BatchProcessor
 ;
 
 { keep comment here to protect the following conditional from being removed by the IDE when adding a unit }

@@ -65,7 +65,8 @@ begin
     end;
 
   try
-    lJSONString := TFile.ReadAllText( aConfigPath );
+    // JSON ist per Definition UTF-8 kodiert - explizit angeben!
+    lJSONString := TFile.ReadAllText( aConfigPath, TEncoding.UTF8 );
     lJSON       := TJSONObject.ParseJSONValue( lJSONString ) as TJSONObject;
 
     if lJSON = NIL then
@@ -101,6 +102,8 @@ begin
       aParams.IndentLevel      := lJSON.GetValue<Integer>( 'indent', 0 );
       aParams.LineNumber       := lJSON.GetValue<Integer>( 'line', -1 );
       aParams.LineNumbers      := lJSON.GetValue<string>( 'lines', '' );
+      // Indent/Unindent parameters
+      aParams.IndentSpaces     := lJSON.GetValue<Integer>( 'spaces', 2 );
       // Move-Lines parameters
       aParams.FromFile         := lJSON.GetValue<string>( 'from-file', '' );
       aParams.ToFile           := lJSON.GetValue<string>( 'to-file', '' );
@@ -136,6 +139,12 @@ begin
         else
       if SameText( lCommand, 'move-lines' )
         then aParams.Command := ctMoveLines
+        else
+      if SameText( lCommand, 'indent' ) or SameText( lCommand, 'indent-lines' )
+        then aParams.Command := ctIndent
+        else
+      if SameText( lCommand, 'unindent' ) or SameText( lCommand, 'unindent-lines' )
+        then aParams.Command := ctUnindent
         else begin
                WriteLn( 'Error: Invalid command in config file: ' + lCommand );
                Exit;
@@ -197,7 +206,8 @@ begin
     end;
 
   try
-    lJSONString := TFile.ReadAllText( aConfigPath );
+    // JSON ist per Definition UTF-8 kodiert - explizit angeben!
+    lJSONString := TFile.ReadAllText( aConfigPath, TEncoding.UTF8 );
     lJSON       := TJSONObject.ParseJSONValue( lJSONString ) as TJSONObject;
 
     if lJSON = NIL then
@@ -272,6 +282,8 @@ begin
           lParams.IndentLevel      := TJSONObject( lOperation ).GetValue<Integer>( 'indent', 0 );
           lParams.LineNumber       := TJSONObject( lOperation ).GetValue<Integer>( 'line', -1 );
           lParams.LineNumbers      := TJSONObject( lOperation ).GetValue<string>( 'lines', '' );
+          // Indent/Unindent parameters
+          lParams.IndentSpaces     := TJSONObject( lOperation ).GetValue<Integer>( 'spaces', 2 );
           // Move-Lines parameters
           lParams.FromFile         := TJSONObject( lOperation ).GetValue<string>( 'from-file', '' );
           lParams.ToFile           := TJSONObject( lOperation ).GetValue<string>( 'to-file', '' );
@@ -310,6 +322,12 @@ begin
             else
           if SameText( lCommand, 'move-lines' )
             then lParams.Command := ctMoveLines
+            else
+          if SameText( lCommand, 'indent' ) or SameText( lCommand, 'indent-lines' )
+            then lParams.Command := ctIndent
+            else
+          if SameText( lCommand, 'unindent' ) or SameText( lCommand, 'unindent-lines' )
+            then lParams.Command := ctUnindent
             else begin
                    WriteLn( 'Error: Invalid command in operation ' + IntToStr( i + 1 ) + ': ' + lCommand );
                    Exit;
@@ -364,7 +382,8 @@ begin
     Exit;
 
   try
-    lJSONString := TFile.ReadAllText( aConfigPath );
+    // JSON ist per Definition UTF-8 kodiert - explizit angeben!
+    lJSONString := TFile.ReadAllText( aConfigPath, TEncoding.UTF8 );
     lJSON       := TJSONObject.ParseJSONValue( lJSONString ) as TJSONObject;
 
     if lJSON = NIL then

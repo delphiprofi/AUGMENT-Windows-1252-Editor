@@ -4,6 +4,32 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.8.2] - 2026-01-26
+
+### Added
+- **Indent Lines (`--indent-lines`)**: Add spaces at the beginning of lines
+  - Parameters: `--file`, `--start-line`, `--end-line`, `--spaces` (default: 2)
+  - Supports: `--backup`, `--dry-run`, `--diff`, `--verbose`
+  - Empty lines are skipped (no spaces added to empty lines)
+  - JSON config: `"command": "indent"` or `"command": "indent-lines"`
+
+- **Unindent Lines (`--unindent-lines`)**: Remove spaces from the beginning of lines
+  - Parameters: `--file`, `--start-line`, `--end-line`, `--spaces` (default: 2)
+  - Supports: `--backup`, `--dry-run`, `--diff`, `--verbose`
+  - Partial unindent: If line has fewer spaces than requested, removes only available spaces
+  - JSON config: `"command": "unindent"` or `"command": "unindent-lines"`
+
+- **BatchProcessor Support**: Indent/Unindent work in batch mode with original line numbers
+
+### Fixed
+- **Build-StrEditor-Release.bat**: Now actually copies to `C:\Delphi XE16\bin\` (was only announced but not executed)
+
+### Tests
+- 13 new unit tests for indent/unindent features
+- 182 total tests passing
+
+---
+
 ## [1.8.1] - 2026-01-26
 
 ### Added

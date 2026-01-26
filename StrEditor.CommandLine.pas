@@ -17,7 +17,7 @@ Type
   ///   Command-Typ
   /// </summary>
   {$ENDREGION}
-  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine, ctReplaceLines, ctDocs, ctRepairUmlauts, ctMoveLines );
+  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine, ctReplaceLines, ctDocs, ctRepairUmlauts, ctMoveLines, ctIndent, ctUnindent );
 
   {$REGION 'Documentation'}
   /// <summary>
@@ -96,6 +96,8 @@ Type
     // Move Lines
     FromFile          : string;       // Source file for move-lines
     ToFile            : string;       // Target file for move-lines
+    // Indent/Unindent
+    IndentSpaces      : Integer;      // Number of spaces for indent/unindent (default: 2)
     // Config Options
     DeleteConfigOnSuccess : Boolean;  // Delete JSON config file after successful execution
   end;
@@ -387,6 +389,98 @@ begin
       if ( aParams.InsertAfterLine <= 0 ) and ( aParams.InsertBeforeLine <= 0 ) then
         begin
           ShowError( 'Missing required parameter: --insert-after-line or --insert-before-line' );
+          Exit;
+        end;
+
+      Result := true;
+      Exit;
+    end;
+
+  if HasParam( '--indent-lines' ) then
+    begin
+      aParams.Command      := ctIndent;
+      aParams.FilePath     := GetParamValue( '--file' );
+      aParams.StartLine    := StrToIntDef( GetParamValue( '--start-line' ), 0 );
+      aParams.EndLine      := StrToIntDef( GetParamValue( '--end-line' ), 0 );
+      aParams.IndentSpaces := StrToIntDef( GetParamValue( '--spaces' ), 2 );
+      aParams.Backup       := HasParam( '--backup' );
+      aParams.DryRun       := HasParam( '--dry-run' );
+      aParams.Diff         := HasParam( '--diff' );
+      aParams.Verbose      := HasParam( '--verbose' );
+
+      if aParams.FilePath = '' then
+        begin
+          ShowError( 'Missing required parameter: --file' );
+          Exit;
+        end;
+
+      if aParams.StartLine <= 0 then
+        begin
+          ShowError( 'Missing or invalid parameter: --start-line' );
+          Exit;
+        end;
+
+      if aParams.EndLine <= 0 then
+        begin
+          ShowError( 'Missing or invalid parameter: --end-line' );
+          Exit;
+        end;
+
+      if aParams.EndLine < aParams.StartLine then
+        begin
+          ShowError( 'Invalid line range: --end-line must be >= --start-line' );
+          Exit;
+        end;
+
+      if aParams.IndentSpaces <= 0 then
+        begin
+          ShowError( 'Invalid --spaces value: must be > 0' );
+          Exit;
+        end;
+
+      Result := true;
+      Exit;
+    end;
+
+  if HasParam( '--unindent-lines' ) then
+    begin
+      aParams.Command      := ctUnindent;
+      aParams.FilePath     := GetParamValue( '--file' );
+      aParams.StartLine    := StrToIntDef( GetParamValue( '--start-line' ), 0 );
+      aParams.EndLine      := StrToIntDef( GetParamValue( '--end-line' ), 0 );
+      aParams.IndentSpaces := StrToIntDef( GetParamValue( '--spaces' ), 2 );
+      aParams.Backup       := HasParam( '--backup' );
+      aParams.DryRun       := HasParam( '--dry-run' );
+      aParams.Diff         := HasParam( '--diff' );
+      aParams.Verbose      := HasParam( '--verbose' );
+
+      if aParams.FilePath = '' then
+        begin
+          ShowError( 'Missing required parameter: --file' );
+          Exit;
+        end;
+
+      if aParams.StartLine <= 0 then
+        begin
+          ShowError( 'Missing or invalid parameter: --start-line' );
+          Exit;
+        end;
+
+      if aParams.EndLine <= 0 then
+        begin
+          ShowError( 'Missing or invalid parameter: --end-line' );
+          Exit;
+        end;
+
+      if aParams.EndLine < aParams.StartLine then
+        begin
+          ShowError( 'Invalid line range: --end-line must be >= --start-line' );
+          Exit;
+        end;
+
+      if aParams.IndentSpaces <= 0 then
+        begin
+          ShowError( 'Invalid --spaces value: must be > 0' );
           Exit;
         end;
 
@@ -1154,9 +1248,15 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.8.1' );
+  WriteLn( 'StrEditor v1.8.2' );
   WriteLn( 'Build: 2026-01-26' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
+  WriteLn;
+  WriteLn( 'New in v1.8.2:' );
+  WriteLn( '  - Indent Lines (--indent-lines): Add spaces at line beginnings' );
+  WriteLn( '  - Unindent Lines (--unindent-lines): Remove spaces from line beginnings' );
+  WriteLn( '  - Parameters: --start-line, --end-line, --spaces (default: 2)' );
+  WriteLn( '  - JSON config support: "command": "indent" / "unindent"' );
   WriteLn;
   WriteLn( 'New in v1.8.1:' );
   WriteLn( '  - Hex-Dump Output (--show --hex): Display file as hex dump for encoding debugging' );

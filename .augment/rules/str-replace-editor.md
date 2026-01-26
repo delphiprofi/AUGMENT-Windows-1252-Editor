@@ -3,37 +3,97 @@ type: "agent_requested"
 description: "Example description"
 ---
 
+# 🚀 JSON-CONFIG MIT ZEILENOPERATIONEN - DIE BESTE METHODE!
+
+## ⭐ WARUM JSON-CONFIG SO GENIAL IST:
+
+**Alle Zeilennummern beziehen sich auf den ORIGINAL-Zustand der Datei!**
+
+Das bedeutet: Du schaust in die Datei, siehst Zeile 735, schreibst `"line": 735`. **FERTIG.**
+Du musst **NIEMALS** nachrechnen, wie sich Zeilennummern durch vorherige Operationen verschieben!
+
+### Beispiel - So einfach ist es:
+
+**Original-Datei:**
+```
+1: #ZEILE1
+2: #ZEILE2
+3: #ZEILE3
+4: #ZEILE4
+5: #ZEILE5
+6: #ZEILE6
+```
+
+**Ich will:**
+- Zeile 2 löschen
+- Zeile 5 löschen
+- Zeile 3 durch 2 Zeilen ersetzen
+- Vor Zeile 2 etwas einfügen
+- Nach Zeile 4 etwas einfügen
+
+**JSON-Config (alle Zeilennummern = Original!):**
+```json
+{
+  "file": "test.pas",
+  "operations": [
+    { "command": "delete-line", "line": 2 },
+    { "command": "delete-line", "line": 5 },
+    { "command": "replace-line", "line": 3, "text-lines": ["#ZEILE3a", "#ZEILE3b"] },
+    { "command": "insert-before", "line": 2, "text": "#ZEILE1a" },
+    { "command": "insert-after", "line": 4, "text": "#ZEILE4a" }
+  ]
+}
+```
+
+**Ergebnis:**
+```
+1: #ZEILE1
+2: #ZEILE1a    ← eingefügt vor Original-Zeile 2
+3: #ZEILE3a    ← Original-Zeile 3 ersetzt
+4: #ZEILE3b
+5: #ZEILE4
+6: #ZEILE4a    ← eingefügt nach Original-Zeile 4
+7: #ZEILE6
+```
+(#ZEILE2 und #ZEILE5 wurden gelöscht)
+
+### ❌ OHNE diese Funktion wäre es UNMÖGLICH:
+
+Bei einer 10.000-Zeilen-Datei mit 20 Operationen müsste ich bei JEDER Operation nachrechnen:
+- "Ich habe Zeile 100 gelöscht, also ist Zeile 200 jetzt Zeile 199..."
+- "Ich habe 3 Zeilen bei Zeile 50 eingefügt, also ist Zeile 199 jetzt Zeile 202..."
+- 🤯 **UNMÖGLICH!**
+
+### ✅ MIT dieser Funktion:
+
+Ich schaue in die Datei, notiere die Zeilennummern die ich sehe, fertig.
+Der BatchProcessor rechnet intern alles um.
+
+---
+
 ## 📌 TL;DR - Die 3 wichtigsten Regeln
 
 1. **🚫 NIEMALS** den internen `str-replace-editor` für `.pas` Dateien verwenden → Kaputte Umlaute!
 2. **✅ IMMER** `StrEditor.exe` verwenden für Delphi-Dateien
-3. **🎯 BEI MEHREREN OPERATIONEN oder MEHRZEILIGEM TEXT** → **JSON-Config mit `text-lines` verwenden!**
+3. **🎯 BEI MEHREREN OPERATIONEN** → **JSON-Config mit Zeilenoperationen verwenden!**
+   - Alle Zeilennummern = Original-Zustand
+   - Kein Nachrechnen von Offsets nötig
+   - Automatische Sortierung (höchste Zeile zuerst)
 
 ---
 
-## ✅ Entscheidungs-Checkliste: Direkt oder JSON?
+## ✅ Entscheidungs-Checkliste: Wann JSON-Config?
 
-**DIREKT aufrufen, wenn ALLE zutreffen:**
-- [ ] Nur 1-2 einfache Operationen
-- [ ] Keine Sonderzeichen (`$`, `` ` ``, `"`, `@`, `|`, `&`)
-- [ ] Kein mehrzeiliger Text
-- [ ] Keine Umlaute im einzufügenden Text
-
-**JSON-Config verwenden, wenn EINES zutrifft:**
+**JSON-Config mit Zeilenoperationen verwenden, wenn:**
+- [x] Mehrere Zeilen ändern/löschen/einfügen
+- [x] Komplexes Refactoring (z.B. IFDEF-Blöcke entfernen und neu einfügen)
 - [x] Mehrzeiliger Text → Nutze `"text-lines": ["Zeile 1", "Zeile 2"]`
-- [x] 3+ Operationen auf gleicher Datei
 - [x] Sonderzeichen im Text (`$`, `` ` ``, `"` etc.)
-- [x] Komplexe Ersetzungen
-- [x] Atomare Batch-Operationen gewünscht
 
-**Beispiel - Wann JSON nutzen:**
-```
-// Mehrzeilig? → JSON mit text-lines
-{
-  "file": "test.pas", "command": "insert-after", "insert-after-line": 10,
-  "text-lines": ["  // Kommentar", "  WriteLn('Test');", "  Inc(i);"]
-}
-```
+**Direkt aufrufen nur wenn:**
+- [ ] Nur 1 einfache Operation
+- [ ] Keine Sonderzeichen
+- [ ] Kein mehrzeiliger Text
 
 ---
 
@@ -61,7 +121,7 @@ StrEditor.exe --file "DATEINAME.pas" --reinterpret-as utf8 --backup --verbose
 
 ## 🔧 StrEditor Integration für Delphi-Dateien
 
-**Version:** 1.8.0 (2026-01-23)
+**Version:** 1.8.1 (2026-01-26)
 
 ### Wichtig: Verwende IMMER StrEditor statt str-replace-editor
 
@@ -782,6 +842,41 @@ StrEditor.exe --file "MyUnit.pas" --show --head 10 --line-numbers
 StrEditor.exe --file "MyUnit.pas" --show --head 3 --raw
 ```
 
+#### **Hex-Dump (Byte-Ansicht):** 🆕 **[NEU in v1.8.1]**
+```bash
+# Ganze Datei als Hex-Dump
+StrEditor.exe --file "MyUnit.pas" --show --hex
+
+# Erste 64 Bytes als Hex-Dump
+StrEditor.exe --file "MyUnit.pas" --show --hex --head 64
+
+# Letzte 32 Bytes als Hex-Dump
+StrEditor.exe --file "MyUnit.pas" --show --hex --tail 32
+```
+**Ausgabe:**
+```
+00000000: 70 72 6F 67 72 61 6D 20  53 74 72 45 64 69 74 6F  program StrEdito
+00000010: 72 3B 0D 0A 0D 0A 7B 24  41 50 50 54 59 50 45 20  r;....{$APPTYPE
+```
+- **Format:** `OFFSET: HH HH HH HH HH HH HH HH  HH HH HH HH HH HH HH HH  ASCII`
+- **16 Bytes pro Zeile** mit Leerzeichen nach dem 8. Byte
+- **ASCII-Darstellung:** Druckbare Zeichen (32-126), sonst `.`
+- **Anwendungsfall:** Encoding-Debugging (z.B. `F6` = Windows-1252 ö, `C3 B6` = UTF-8 ö)
+
+#### **Base64-Ausgabe:** 🆕 **[NEU in v1.8.1]**
+```bash
+# Ganze Datei als Base64
+StrEditor.exe --file "MyUnit.pas" --show --base64
+
+# Erste 100 Bytes als Base64
+StrEditor.exe --file "MyUnit.pas" --show --base64 --head 100
+
+# Letzte 50 Bytes als Base64
+StrEditor.exe --file "MyUnit.pas" --show --base64 --tail 50
+```
+- **Anwendungsfall:** Dateiinhalt für Copy/Paste oder Tests transportieren
+- **Hinweis:** `--head` und `--tail` arbeiten im Hex/Base64-Modus auf **Byte-Ebene**, nicht Zeilen-Ebene
+
 #### **Mit Encoding-Info:**
 ```bash
 StrEditor.exe --file "MyUnit.pas" --show --verbose
@@ -986,3 +1081,57 @@ if ($LASTEXITCODE -eq 0) {
 
 ---
 
+## 🆕 Neue Features in Version 1.8.1 (2026-01-26)
+
+### 1. Hex-Dump Ausgabe (`--hex`)
+
+**Problem:** Für Encoding-Debugging musste man bisher PowerShell verwenden, was zu Interpretationsproblemen führen konnte.
+**Lösung:** `--hex` zeigt die rohen Bytes direkt, wie StrEditor sie liest.
+
+```bash
+# Hex-Dump der ersten 64 Bytes
+StrEditor.exe --file "MyUnit.pas" --show --hex --head 64
+```
+
+**Ausgabe:**
+```
+00000000: 70 72 6F 67 72 61 6D 20  53 74 72 45 64 69 74 6F  program StrEdito
+00000010: 72 3B 0D 0A 0D 0A 7B 24  41 50 50 54 59 50 45 20  r;....{$APPTYPE
+```
+
+**Anwendungsfälle:**
+- Encoding-Debugging: `F6` = Windows-1252 ö, `C3 B6` = UTF-8 ö
+- BOM-Erkennung: `EF BB BF` = UTF-8 BOM
+- CRLF vs LF: `0D 0A` = CRLF, `0A` = LF
+
+### 2. Base64-Ausgabe (`--base64`)
+
+**Problem:** Dateiinhalte für Tests oder Copy/Paste transportieren.
+**Lösung:** `--base64` gibt den Inhalt als Base64-String aus.
+
+```bash
+# Ganze Datei als Base64
+StrEditor.exe --file "MyUnit.pas" --show --base64
+
+# Erste 100 Bytes als Base64
+StrEditor.exe --file "MyUnit.pas" --show --base64 --head 100
+```
+
+**Anwendungsfälle:**
+- Dateiinhalt für Unit-Tests
+- Binärdaten in JSON-Configs einbetten
+- Exakte Byte-Sequenzen transportieren
+
+### 3. Byte-basierte Head/Tail
+
+Im Hex- und Base64-Modus arbeiten `--head` und `--tail` auf **Byte-Ebene**, nicht Zeilen-Ebene:
+
+```bash
+# Erste 32 Bytes (nicht Zeilen!)
+StrEditor.exe --file "MyUnit.pas" --show --hex --head 32
+
+# Letzte 16 Bytes
+StrEditor.exe --file "MyUnit.pas" --show --base64 --tail 16
+```
+
+---

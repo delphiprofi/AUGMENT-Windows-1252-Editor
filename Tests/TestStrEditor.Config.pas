@@ -8,6 +8,7 @@ Uses
 , System.Classes
 , System.IOUtils
 , System.JSON
+, Winapi.Windows
 , StrEditor.Config
 , StrEditor.CommandLine
 , StrEditor.BatchProcessor
@@ -54,6 +55,21 @@ Type
 
       [Test]
       procedure TestBatchProcessor_SortedExecution;
+
+      [Test]
+      procedure TestJSONConfig_UTF8_Umlaut_In_OldStr;
+
+      [Test]
+      procedure TestJSONConfig_UTF8_Umlaut_In_NewStr;
+
+      [Test]
+      procedure TestJSONConfig_ViaExe_RemoveLogBlocks;
+
+      [Test]
+      procedure TestJSONConfig_ViaExe_AddLogBlocks;
+
+      [Test]
+      procedure TestJSONConfig_ViaExe_FullRoundtrip;
   end;
 
 implementation
@@ -67,13 +83,13 @@ end;
 procedure TTestConfig.TearDown;
 begin
   if FileExists( fTestFilePath ) then
-    DeleteFile( fTestFilePath );
+    System.SysUtils.DeleteFile( fTestFilePath );
 
   if FileExists( fTestConfigPath ) then
-    DeleteFile( fTestConfigPath );
+    System.SysUtils.DeleteFile( fTestConfigPath );
 
   if FileExists( fTestFilePath + '.bak' ) then
-    DeleteFile( fTestFilePath + '.bak' );
+    System.SysUtils.DeleteFile( fTestFilePath + '.bak' );
 end;
 
 procedure TTestConfig.CreateTestFile( const aContent : string );
@@ -261,6 +277,356 @@ begin
 
   Var lResult := TFile.ReadAllText( fTestFilePath, TEncoding.UTF8 ).TrimRight;
   Assert.AreEqual( 'Line 1'#13#10'Line 3'#13#10'Line 5', lResult, 'Lines 2 and 4 should be deleted (sorted execution)' );
+end;
+
+procedure TTestConfig.TestJSONConfig_UTF8_Umlaut_In_OldStr;
+Var
+  lParams        : TCommandLineParams;
+  lResult        : TOperationResult;
+  lContent       : string;
+  lBytes         : TBytes;
+  lJSONBytes     : TBytes;
+  lGeloeschtW    : string;  // "Gelöscht" als Unicode-String
+  lGeloeschtUTF8 : TBytes;  // "Gelöscht" als UTF-8 Bytes
+begin
+  // 1. Erstelle Windows-1252 kodierte Datei mit Umlauten
+  //    "Gelöscht" in Windows-1252: G=47, e=65, l=6C, ö=F6, s=73, c=63, h=68, t=74
+  lBytes := TBytes.Create( $47, $65, $6C, $F6, $73, $63, $68, $74 );  // "Gelöscht"
+  lGeloeschtW := TEncodingHelper.Windows1252ToString( lBytes );  // Unicode "Gelöscht"
+  lContent := 'Status: ' + lGeloeschtW;
+
+  // Speichere als Windows-1252
+  lBytes := TEncodingHelper.StringToWindows1252( lContent );
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  // 2. Erstelle UTF-8 kodierte JSON-Config mit Umlaut im old-str
+  //    "Gelöscht" in UTF-8: G=47, e=65, l=6C, ö=C3 B6, s=73, c=63, h=68, t=74
+  lGeloeschtUTF8 := TBytes.Create( $47, $65, $6C, $C3, $B6, $73, $63, $68, $74 );
+
+  // Baue JSON als Bytes zusammen (vermeidet String-Literal-Encoding-Probleme)
+  lJSONBytes := TEncoding.UTF8.GetBytes( '{ "command": "str-replace", "file": "' +
+                StringReplace( fTestFilePath, '\', '\\', [ rfReplaceAll ] ) +
+                '", "old-str": "' ) +
+                lGeloeschtUTF8 +
+                TEncoding.UTF8.GetBytes( '", "new-str": "Deleted" }' );
+
+  // Speichere JSON als UTF-8 Bytes
+  TFile.WriteAllBytes( fTestConfigPath, lJSONBytes );
+
+  // 3. Lade Config und führe Replace aus
+  Assert.IsTrue( TConfigHelper.LoadFromJSON( fTestConfigPath, lParams ), 'LoadFromJSON should succeed' );
+
+  // 4. Prüfe ob der OldStr korrekt geladen wurde (sollte Unicode "ö" enthalten)
+  //    Vergleiche mit dem Unicode-String den wir aus Windows-1252 erstellt haben
+  Assert.AreEqual( lGeloeschtW, lParams.OldStr, 'OldStr should contain correct Umlaut' );
+
+  // 5. Führe die Ersetzung aus
+  lResult := TStringOperations.StrReplace( fTestFilePath, lParams.OldStr, lParams.NewStr, -1, -1, false, false, false );
+
+  // 6. Prüfe ob die Ersetzung erfolgreich war
+  Assert.IsTrue( lResult.Success, 'StrReplace should succeed - ' + lResult.ErrorMessage );
+
+  // 7. Prüfe das Ergebnis
+  lBytes := TFile.ReadAllBytes( fTestFilePath );
+  lContent := TEncodingHelper.Windows1252ToString( lBytes );
+  Assert.AreEqual( 'Status: Deleted', lContent.TrimRight, 'Content should be replaced' );
+end;
+
+procedure TTestConfig.TestJSONConfig_UTF8_Umlaut_In_NewStr;
+Var
+  lParams        : TCommandLineParams;
+  lResult        : TOperationResult;
+  lContent       : string;
+  lBytes         : TBytes;
+  lJSONBytes     : TBytes;
+  lGeloeschtW    : string;  // "Gelöscht" als Unicode-String
+  lGeloeschtUTF8 : TBytes;  // "Gelöscht" als UTF-8 Bytes
+begin
+  // 1. Erstelle Windows-1252 kodierte Datei
+  lContent := 'Status: Deleted';
+  lBytes := TEncodingHelper.StringToWindows1252( lContent );
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  // Erstelle Unicode-Referenzstring aus Windows-1252 Bytes
+  lBytes := TBytes.Create( $47, $65, $6C, $F6, $73, $63, $68, $74 );  // "Gelöscht"
+  lGeloeschtW := TEncodingHelper.Windows1252ToString( lBytes );  // Unicode "Gelöscht"
+
+  // 2. Erstelle UTF-8 kodierte JSON-Config mit Umlaut im new-str
+  //    "Gelöscht" in UTF-8: G=47, e=65, l=6C, ö=C3 B6, s=73, c=63, h=68, t=74
+  lGeloeschtUTF8 := TBytes.Create( $47, $65, $6C, $C3, $B6, $73, $63, $68, $74 );
+
+  // Baue JSON als Bytes zusammen (vermeidet String-Literal-Encoding-Probleme)
+  lJSONBytes := TEncoding.UTF8.GetBytes( '{ "command": "str-replace", "file": "' +
+                StringReplace( fTestFilePath, '\', '\\', [ rfReplaceAll ] ) +
+                '", "old-str": "Deleted", "new-str": "' ) +
+                lGeloeschtUTF8 +
+                TEncoding.UTF8.GetBytes( '" }' );
+
+  // Speichere JSON als UTF-8 Bytes
+  TFile.WriteAllBytes( fTestConfigPath, lJSONBytes );
+
+  // 3. Lade Config und führe Replace aus
+  Assert.IsTrue( TConfigHelper.LoadFromJSON( fTestConfigPath, lParams ), 'LoadFromJSON should succeed' );
+
+  // 4. Prüfe ob der NewStr korrekt geladen wurde
+  //    Vergleiche mit dem Unicode-String den wir aus Windows-1252 erstellt haben
+  Assert.AreEqual( lGeloeschtW, lParams.NewStr, 'NewStr should contain correct Umlaut' );
+
+  // 5. Führe die Ersetzung aus
+  lResult := TStringOperations.StrReplace( fTestFilePath, lParams.OldStr, lParams.NewStr, -1, -1, false, false, false );
+
+  Assert.IsTrue( lResult.Success, 'StrReplace should succeed - ' + lResult.ErrorMessage );
+
+  // 6. Prüfe das Ergebnis - muss als Windows-1252 gespeichert sein
+  lBytes := TFile.ReadAllBytes( fTestFilePath );
+
+  // Prüfe ob das ö als Windows-1252 Byte F6 gespeichert wurde
+  lContent := TEncodingHelper.Windows1252ToString( lBytes );
+
+  // Vergleiche mit unserem Unicode-Referenzstring
+  Assert.AreEqual( 'Status: ' + lGeloeschtW, lContent.TrimRight, 'Content should contain Umlaut' );
+
+  // Zusätzlich: Prüfe das tatsächliche Byte für ö
+  // In "Status: Gelöscht" ist ö an Position 11 (0-basiert)
+  // S=0, t=1, a=2, t=3, u=4, s=5, :=6, space=7, G=8, e=9, l=10, ö=11
+  Assert.AreEqual( Byte( $F6 ), lBytes[ 11 ], 'Byte for ö should be F6 (Windows-1252)' );
+end;
+
+function RunStrEditor( const aConfigPath : string ) : Integer;
+Var
+  lStartupInfo  : TStartupInfo;
+  lProcessInfo  : TProcessInformation;
+  lCommandLine  : string;
+  lExitCode     : DWORD;
+begin
+  Result := -1;
+
+  lCommandLine := 'StrEditor.exe --config "' + aConfigPath + '"';
+
+  FillChar( lStartupInfo, SizeOf( lStartupInfo ), 0 );
+  lStartupInfo.cb          := SizeOf( lStartupInfo );
+  lStartupInfo.dwFlags     := STARTF_USESHOWWINDOW;
+  lStartupInfo.wShowWindow := SW_HIDE;
+
+  if CreateProcess( NIL, PChar( lCommandLine ), NIL, NIL, false, CREATE_NO_WINDOW, NIL, NIL, lStartupInfo, lProcessInfo ) then
+    begin
+      WaitForSingleObject( lProcessInfo.hProcess, 30000 );
+      GetExitCodeProcess( lProcessInfo.hProcess, lExitCode );
+      Result := Integer( lExitCode );
+      CloseHandle( lProcessInfo.hProcess );
+      CloseHandle( lProcessInfo.hThread );
+    end;
+end;
+
+procedure TTestConfig.TestJSONConfig_ViaExe_RemoveLogBlocks;
+// Testet das Entfernen von Log-Bloecken via StrEditor.exe --config
+// Alle Zeilennummern beziehen sich auf den ORIGINAL-Zustand!
+const
+  cMethodWithLogs =
+    'procedure Test;'#13#10 +                    // 1
+    'begin'#13#10 +                              // 2
+    '  {$IFDEF FRANK_LOG}'#13#10 +               // 3
+    '  TLog.Debug( ''Start'' );'#13#10 +         // 4
+    '  {$ENDIF}'#13#10 +                         // 5
+    '  if Node = NIL then'#13#10 +               // 6
+    '    begin'#13#10 +                          // 7
+    '      {$IFDEF FRANK_LOG}'#13#10 +           // 8
+    '      TLog.Debug( ''NIL'' );'#13#10 +       // 9
+    '      {$ENDIF}'#13#10 +                     // 10
+    '      Exit;'#13#10 +                        // 11
+    '    end;'#13#10 +                           // 12
+    '  DoSomething;'#13#10 +                     // 13
+    '  {$IFDEF FRANK_LOG}'#13#10 +               // 14
+    '  TLog.Debug( ''End'' );'#13#10 +           // 15
+    '  {$ENDIF}'#13#10 +                         // 16
+    'end;';                                      // 17
+Var
+  lJSON      : string;
+  lExitCode  : Integer;
+  lContent   : string;
+  lBytes     : TBytes;
+  lEscPath   : string;
+begin
+  // 1. Erstelle Test-Datei als Windows-1252
+  lBytes := TEncodingHelper.StringToWindows1252( cMethodWithLogs );
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  // 2. Erstelle JSON-Config - alle Zeilennummern = ORIGINAL
+  lEscPath := StringReplace( fTestFilePath, '\', '\\', [ rfReplaceAll ] );
+  lJSON :=
+    '{'#13#10 +
+    '  "operations": ['#13#10 +
+    '    { "command": "delete-lines", "file": "' + lEscPath + '", "start-line": 3, "end-line": 5 },'#13#10 +
+    '    { "command": "delete-lines", "file": "' + lEscPath + '", "start-line": 8, "end-line": 10 },'#13#10 +
+    '    { "command": "delete-lines", "file": "' + lEscPath + '", "start-line": 14, "end-line": 16 }'#13#10 +
+    '  ]'#13#10 +
+    '}';
+  TFile.WriteAllText( fTestConfigPath, lJSON, TEncoding.UTF8 );
+
+  // 3. Fuehre StrEditor.exe aus
+  lExitCode := RunStrEditor( fTestConfigPath );
+  Assert.AreEqual( 0, lExitCode, 'StrEditor.exe should return 0' );
+
+  // 4. Pruefe Ergebnis
+  lBytes   := TFile.ReadAllBytes( fTestFilePath );
+  lContent := TEncodingHelper.Windows1252ToString( lBytes );
+
+  Assert.IsFalse( lContent.Contains( 'FRANK_LOG' ), 'All FRANK_LOG should be removed' );
+  Assert.IsFalse( lContent.Contains( 'TLog.Debug' ), 'All TLog.Debug should be removed' );
+  Assert.IsTrue( lContent.Contains( 'DoSomething' ), 'DoSomething should remain' );
+  Assert.IsTrue( lContent.Contains( 'Exit' ), 'Exit should remain' );
+end;
+
+procedure TTestConfig.TestJSONConfig_ViaExe_AddLogBlocks;
+// Testet das Einfuegen von Log-Bloecken via StrEditor.exe --config
+// Alle Zeilennummern beziehen sich auf den ORIGINAL-Zustand (8 Zeilen)!
+const
+  cMethodWithoutLogs =
+    'procedure Test;'#13#10 +                    // 1
+    'begin'#13#10 +                              // 2
+    '  if Node = NIL then'#13#10 +               // 3
+    '    begin'#13#10 +                          // 4
+    '      Exit;'#13#10 +                        // 5
+    '    end;'#13#10 +                           // 6
+    '  DoSomething;'#13#10 +                     // 7
+    'end;';                                      // 8
+Var
+  lJSON      : string;
+  lExitCode  : Integer;
+  lContent   : string;
+  lBytes     : TBytes;
+  lEscPath   : string;
+begin
+  // 1. Erstelle Test-Datei als Windows-1252
+  lBytes := TEncodingHelper.StringToWindows1252( cMethodWithoutLogs );
+  TFile.WriteAllBytes( fTestFilePath, lBytes );
+
+  // 2. Erstelle JSON-Config - alle Zeilennummern = ORIGINAL (8 Zeilen)
+  lEscPath := StringReplace( fTestFilePath, '\', '\\', [ rfReplaceAll ] );
+  lJSON :=
+    '{'#13#10 +
+    '  "operations": ['#13#10 +
+    '    { "command": "insert-after", "file": "' + lEscPath + '", "insert-after-line": 2, ' +
+         '"text-lines": ["  {$IFDEF FRANK_LOG}", "  TLog.Debug( ''Start'' );", "  {$ENDIF}"] },'#13#10 +
+    '    { "command": "insert-before", "file": "' + lEscPath + '", "insert-before-line": 5, ' +
+         '"text-lines": ["      {$IFDEF FRANK_LOG}", "      TLog.Debug( ''NIL'' );", "      {$ENDIF}"] },'#13#10 +
+    '    { "command": "insert-before", "file": "' + lEscPath + '", "insert-before-line": 8, ' +
+         '"text-lines": ["  {$IFDEF FRANK_LOG}", "  TLog.Debug( ''End'' );", "  {$ENDIF}"] }'#13#10 +
+    '  ]'#13#10 +
+    '}';
+  TFile.WriteAllText( fTestConfigPath, lJSON, TEncoding.UTF8 );
+
+  // 3. Fuehre StrEditor.exe aus
+  lExitCode := RunStrEditor( fTestConfigPath );
+  Assert.AreEqual( 0, lExitCode, 'StrEditor.exe should return 0' );
+
+  // 4. Pruefe Ergebnis
+  lBytes   := TFile.ReadAllBytes( fTestFilePath );
+  lContent := TEncodingHelper.Windows1252ToString( lBytes );
+
+  Assert.IsTrue( lContent.Contains( 'FRANK_LOG' ), 'FRANK_LOG should be present' );
+  Assert.IsTrue( lContent.Contains( 'TLog.Debug( ''Start'' )' ), 'Start log should be present' );
+  Assert.IsTrue( lContent.Contains( 'TLog.Debug( ''NIL'' )' ), 'NIL log should be present' );
+  Assert.IsTrue( lContent.Contains( 'TLog.Debug( ''End'' )' ), 'End log should be present' );
+end;
+
+procedure TTestConfig.TestJSONConfig_ViaExe_FullRoundtrip;
+// Kompletter Roundtrip: Logs entfernen und wieder einfuegen
+// Prueft ob das Ergebnis identisch mit dem Original ist
+const
+  cMethodWithLogs =
+    'procedure Test;'#13#10 +
+    'begin'#13#10 +
+    '  {$IFDEF FRANK_LOG}'#13#10 +
+    '  TLog.Debug( ''Start'' );'#13#10 +
+    '  {$ENDIF}'#13#10 +
+    '  if Node = NIL then'#13#10 +
+    '    begin'#13#10 +
+    '      {$IFDEF FRANK_LOG}'#13#10 +
+    '      TLog.Debug( ''NIL'' );'#13#10 +
+    '      {$ENDIF}'#13#10 +
+    '      Exit;'#13#10 +
+    '    end;'#13#10 +
+    '  DoSomething;'#13#10 +
+    '  {$IFDEF FRANK_LOG}'#13#10 +
+    '  TLog.Debug( ''End'' );'#13#10 +
+    '  {$ENDIF}'#13#10 +
+    'end;';
+Var
+  lRemoveJSON   : string;
+  lAddJSON      : string;
+  lExitCode     : Integer;
+  lOriginal     : TBytes;
+  lAfterRemove  : TBytes;
+  lAfterAdd     : TBytes;
+  lEscPath      : string;
+  lRemoveConfig : string;
+  lAddConfig    : string;
+  i             : Integer;
+begin
+  // Separate Config-Dateien fuer Remove und Add
+  lRemoveConfig := TPath.Combine( TPath.GetTempPath, 'remove_logs_' + IntToStr( Random( 10000 ) ) + '.json' );
+  lAddConfig    := TPath.Combine( TPath.GetTempPath, 'add_logs_' + IntToStr( Random( 10000 ) ) + '.json' );
+
+  try
+    // 1. Erstelle Original-Datei
+    lOriginal := TEncodingHelper.StringToWindows1252( cMethodWithLogs );
+    TFile.WriteAllBytes( fTestFilePath, lOriginal );
+
+    lEscPath := StringReplace( fTestFilePath, '\', '\\', [ rfReplaceAll ] );
+
+    // 2. SCHRITT 1: Logs entfernen
+    lRemoveJSON :=
+      '{'#13#10 +
+      '  "operations": ['#13#10 +
+      '    { "command": "delete-lines", "file": "' + lEscPath + '", "start-line": 3, "end-line": 5 },'#13#10 +
+      '    { "command": "delete-lines", "file": "' + lEscPath + '", "start-line": 8, "end-line": 10 },'#13#10 +
+      '    { "command": "delete-lines", "file": "' + lEscPath + '", "start-line": 14, "end-line": 16 }'#13#10 +
+      '  ]'#13#10 +
+      '}';
+    TFile.WriteAllText( lRemoveConfig, lRemoveJSON, TEncoding.UTF8 );
+
+    lExitCode := RunStrEditor( lRemoveConfig );
+    Assert.AreEqual( 0, lExitCode, 'Remove logs should succeed' );
+
+    lAfterRemove := TFile.ReadAllBytes( fTestFilePath );
+    Assert.IsFalse( TEncodingHelper.Windows1252ToString( lAfterRemove ).Contains( 'FRANK_LOG' ),
+      'After remove: No FRANK_LOG should be present' );
+
+    // 3. SCHRITT 2: Logs wieder einfuegen (Zeilennummern = Zustand ohne Logs = 8 Zeilen)
+    lAddJSON :=
+      '{'#13#10 +
+      '  "operations": ['#13#10 +
+      '    { "command": "insert-after", "file": "' + lEscPath + '", "insert-after-line": 2, ' +
+           '"text-lines": ["  {$IFDEF FRANK_LOG}", "  TLog.Debug( ''Start'' );", "  {$ENDIF}"] },'#13#10 +
+      '    { "command": "insert-before", "file": "' + lEscPath + '", "insert-before-line": 5, ' +
+           '"text-lines": ["      {$IFDEF FRANK_LOG}", "      TLog.Debug( ''NIL'' );", "      {$ENDIF}"] },'#13#10 +
+      '    { "command": "insert-before", "file": "' + lEscPath + '", "insert-before-line": 8, ' +
+           '"text-lines": ["  {$IFDEF FRANK_LOG}", "  TLog.Debug( ''End'' );", "  {$ENDIF}"] }'#13#10 +
+      '  ]'#13#10 +
+      '}';
+    TFile.WriteAllText( lAddConfig, lAddJSON, TEncoding.UTF8 );
+
+    lExitCode := RunStrEditor( lAddConfig );
+    Assert.AreEqual( 0, lExitCode, 'Add logs should succeed' );
+
+    // 4. Pruefe ob Ergebnis identisch mit Original ist
+    lAfterAdd := TFile.ReadAllBytes( fTestFilePath );
+
+    Assert.AreEqual( Length( lOriginal ), Length( lAfterAdd ),
+      'After roundtrip: Length should match original' );
+
+    for i := 0 to Length( lOriginal ) - 1 do
+      Assert.AreEqual( lOriginal[ i ], lAfterAdd[ i ],
+        'After roundtrip: Byte ' + IntToStr( i ) + ' should match original' );
+
+  finally
+    if FileExists( lRemoveConfig ) then
+      System.SysUtils.DeleteFile( lRemoveConfig );
+
+    if FileExists( lAddConfig ) then
+      System.SysUtils.DeleteFile( lAddConfig );
+  end;
 end;
 
 end.

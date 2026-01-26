@@ -1,29 +1,40 @@
 # StrEditor - Integration Guide
 
-**Version:** 1.7.7
-**Last Updated:** 2026-01-20
+**Version:** 1.8.0
+**Last Updated:** 2026-01-23
 
 ---
 
 ## 📌 TL;DR - Quick Start
 
 1. **Use `StrEditor.exe`** instead of `str-replace-editor` for Delphi files
-2. **For MULTIPLE operations** → Always use **JSON-Config** (not multiple single calls!)
+2. **For MULTIPLE operations or MULTI-LINE text** → Use **JSON-Config with `text-lines`!**
 3. **Path:** `C:\Delphi XE16\bin\StrEditor.exe` (in PATH)
 
-### Quick Example: JSON-Config (Preferred Method)
+### Quick Example: JSON-Config with text-lines (v1.8 - Preferred Method)
 ```json
 {
   "operations": [
     {"command": "replace-line", "file": "MyUnit.pas", "line": 25, "text": "  NewCode;"},
     {"command": "delete-line", "file": "MyUnit.pas", "line": 30},
-    {"command": "insert-before", "file": "MyUnit.pas", "line": 10, "text": "  // Comment"}
+    {
+      "command": "insert-after", "file": "MyUnit.pas", "insert-after-line": 10,
+      "text-lines": ["  {$IFDEF DEBUG}", "  WriteLn('Debug');", "  {$ENDIF}"]
+    }
   ]
 }
 ```
 ```bash
-StrEditor.exe --config operations.json --backup --verbose
+StrEditor.exe --config operations.json --backup --delete-config-on-success
 ```
+
+### v1.8 Parameter Aliases
+| Short | Long |
+|-------|------|
+| `--ib` | `--insert-before-line` |
+| `--ia` | `--insert-after-line` |
+| `--dl` | `--delete-line` |
+| `--rl` | `--replace-line` |
 
 ---
 

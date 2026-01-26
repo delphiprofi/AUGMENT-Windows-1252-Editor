@@ -120,9 +120,10 @@ end;
 
 class function TEncodingHelper.ReadFile( const aFilePath : string; out aLines : TStringList; out aEncoding : TEncodingType ) : Boolean;
 Var
-  lFileStream : TFileStream;
-  lBytes      : TBytes;
-  lContent    : string;
+  lFileStream       : TFileStream;
+  lBytes            : TBytes;
+  lContent          : string;
+  lHasTrailingBreak : Boolean;
 begin
   Result   := false;
   aLines   := NIL;
@@ -140,13 +141,19 @@ begin
     if lFileStream.Size > 0 then
       lFileStream.Read( lBytes[ 0 ], lFileStream.Size );
 
-    if aEncoding = etUTF8 
+    if aEncoding = etUTF8
       then lContent := UTF8ToString( lBytes )
       else lContent := Windows1252ToString( lBytes );
 
-    aLines      := TStringList.Create;
-    aLines.Text := lContent;
-    Result      := true;
+    // Prüfe ob Original einen Trailing Line Break hat
+    lHasTrailingBreak := ( Length( lContent ) >= 2 ) and
+                         ( lContent[ Length( lContent ) - 1 ] = #13 ) and
+                         ( lContent[ Length( lContent ) ] = #10 );
+
+    aLines                   := TStringList.Create;
+    aLines.TrailingLineBreak := lHasTrailingBreak;
+    aLines.Text              := lContent;
+    Result                   := true;
   finally
     lFileStream.Free;
   end;
