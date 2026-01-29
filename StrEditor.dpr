@@ -735,19 +735,22 @@ begin
                      end;
                  end;
 
-            // Delete config file on success if requested (not in dry-run mode)
-            if lParams.DeleteConfigOnSuccess and ( ExitCode = Ord( ecSuccess ) ) and ( not lParams.DryRun ) then
+            // Auto-delete config file on success (unless --keep-config is specified)
+            if ( not lParams.KeepConfig ) and ( ExitCode = Ord( ecSuccess ) ) and ( not lParams.DryRun ) then
               begin
                 if lParams.Verbose then
-                  WriteLn( 'Deleting config file: ' + lParams.ConfigFile );
+                  WriteLn( 'Auto-deleting config file: ' + lParams.ConfigFile );
 
                 if DeleteFile( lParams.ConfigFile )
                   then WriteLn( 'Config file deleted successfully' )
                   else WriteLn( 'WARNING: Could not delete config file: ' + lParams.ConfigFile );
               end
             else
-            if lParams.DeleteConfigOnSuccess and lParams.DryRun then
-              WriteLn( 'Dry-run mode: Config file NOT deleted' );
+            if ( not lParams.KeepConfig ) and lParams.DryRun then
+              WriteLn( 'Dry-run mode: Config file NOT deleted' )
+            else
+            if lParams.KeepConfig and ( ExitCode = Ord( ecSuccess ) ) then
+              WriteLn( 'Config file preserved (--keep-config)' );
 
             Exit;
           end
@@ -776,19 +779,22 @@ begin
 
     ProcessSingleFile( lParams );
 
-    // Delete config file on success if requested (for single operation config, not in dry-run mode)
-    if ( lParams.ConfigFile <> '' ) and lParams.DeleteConfigOnSuccess and ( ExitCode = Ord( ecSuccess ) ) and ( not lParams.DryRun ) then
+    // Auto-delete config file on success (for single operation config, unless --keep-config)
+    if ( lParams.ConfigFile <> '' ) and ( not lParams.KeepConfig ) and ( ExitCode = Ord( ecSuccess ) ) and ( not lParams.DryRun ) then
       begin
         if lParams.Verbose then
-          WriteLn( 'Deleting config file: ' + lParams.ConfigFile );
+          WriteLn( 'Auto-deleting config file: ' + lParams.ConfigFile );
 
         if DeleteFile( lParams.ConfigFile )
           then WriteLn( 'Config file deleted successfully' )
           else WriteLn( 'WARNING: Could not delete config file: ' + lParams.ConfigFile );
       end
     else
-    if ( lParams.ConfigFile <> '' ) and lParams.DeleteConfigOnSuccess and lParams.DryRun then
-      WriteLn( 'Dry-run mode: Config file NOT deleted' );
+    if ( lParams.ConfigFile <> '' ) and ( not lParams.KeepConfig ) and lParams.DryRun then
+      WriteLn( 'Dry-run mode: Config file NOT deleted' )
+    else
+    if ( lParams.ConfigFile <> '' ) and lParams.KeepConfig and ( ExitCode = Ord( ecSuccess ) ) then
+      WriteLn( 'Config file preserved (--keep-config)' );
   except
     on E : Exception do
       begin

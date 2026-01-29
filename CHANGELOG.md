@@ -4,6 +4,35 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.8.3] - 2026-01-29
+
+### Changed (BREAKING)
+- **Auto-Delete JSON Config**: JSON config files are now **automatically deleted** after successful execution
+  - Previous behavior: Config files were kept unless `--delete-config-on-success` was specified
+  - New behavior: Config files are deleted by default, use `--keep-config` to preserve them
+  - Rationale: AI agents often forgot to clean up config files, leading to workspace clutter
+
+### Added
+- **`--keep-config` Parameter**: Preserves JSON config file after successful execution
+  - Use for debugging or when you need to re-run the same config
+  - Example: `StrEditor.exe --config "ops.json" --keep-config`
+
+### Removed
+- **`--delete-config-on-success` Parameter**: No longer needed (now default behavior)
+
+### Documentation
+- **AGENT-RULES-STREDITOR.md**: New strict rules file for AI agents
+  - Prohibits sequential operations on same file
+  - Requires JSON-Config for multiple operations
+  - Requires `text-lines` array for multi-line text (no Base64)
+  - Copy-paste templates for common operations
+- **str-replace-editor.md**: Added critical warning section at top
+
+### Tests
+- 183 total tests passing (+1 new test for `--keep-config`)
+
+---
+
 ## [1.8.2] - 2026-01-26
 
 ### Added

@@ -3,6 +3,39 @@ type: "agent_requested"
 description: "Example description"
 ---
 
+# 🚨🚨🚨 KRITISCHE WARNUNG FÜR AI-AGENTEN 🚨🚨🚨
+
+## ⛔ NIEMALS SEQUENTIELLE OPERATIONEN AUF DIESELBE DATEI!
+
+```powershell
+# ❌ VERBOTEN - NIEMALS SO!
+StrEditor.exe --file "test.pas" --delete-lines "5,6,7"
+StrEditor.exe --file "test.pas" --insert-after 4 --text "Neue Zeile"
+```
+
+**WARUM?** Nach dem ersten Befehl stimmen die Zeilennummern nicht mehr!
+- Zeile 5 ist nach dem Delete jetzt Zeile 4!
+- Der zweite Befehl fügt an der FALSCHEN Stelle ein!
+- **RESULTAT: KORRUPTE DATEI!**
+
+## ✅ RICHTIG: JSON-Config verwenden!
+
+```json
+{
+  "file": "test.pas",
+  "operations": [
+    { "command": "delete-line", "line": 5 },
+    { "command": "delete-line", "line": 6 },
+    { "command": "delete-line", "line": 7 },
+    { "command": "insert-after", "insert-after-line": 4, "text": "Neue Zeile" }
+  ]
+}
+```
+
+**Alle Zeilennummern = ORIGINAL-Zustand! Kein Nachrechnen nötig!**
+
+---
+
 # 🚀 JSON-CONFIG MIT ZEILENOPERATIONEN - DIE BESTE METHODE!
 
 ## ⭐ WARUM JSON-CONFIG SO GENIAL IST:
@@ -121,7 +154,7 @@ StrEditor.exe --file "DATEINAME.pas" --reinterpret-as utf8 --backup --verbose
 
 ## 🔧 StrEditor Integration für Delphi-Dateien
 
-**Version:** 1.8.1 (2026-01-26)
+**Version:** 1.8.3 (2026-01-29)
 
 ### Wichtig: Verwende IMMER StrEditor statt str-replace-editor
 
@@ -558,21 +591,22 @@ StrEditor.exe --move-lines --from "UnitA.pas" --to "UnitB.pas" --start-line 10 -
 StrEditor.exe --config operations.json --backup --verbose
 ```
 
-**Delete Config on Success (Config nach Erfolg löschen):** 🆕 **[NEU in v1.7.6]**
+**Auto-Delete Config (Standard seit v1.8.3):** 🆕 **[GEÄNDERT in v1.8.3]**
 ```bash
-# JSON-Config ausführen und bei Erfolg automatisch löschen
-StrEditor.exe --config operations.json --delete-config-on-success --verbose
+# JSON-Config wird bei Erfolg AUTOMATISCH GELÖSCHT (Standard!)
+StrEditor.exe --config operations.json --verbose
 
-# Mit Backup
-StrEditor.exe --config operations.json --delete-config-on-success --backup
+# Config BEHALTEN (für Debugging)
+StrEditor.exe --config operations.json --keep-config --verbose
 
 # Dry-Run löscht Config NICHT (keine echten Änderungen)
-StrEditor.exe --config operations.json --delete-config-on-success --dry-run
+StrEditor.exe --config operations.json --dry-run
 # Output: "Dry-run mode: Config file NOT deleted"
 ```
-- **Anwendungsfall:** Automatisierte Skripte, CI/CD Pipelines
-- **Wichtig:** Config wird NUR gelöscht wenn alle Operationen erfolgreich waren (ExitCode = 0)
-- **Dry-Run:** Bei `--dry-run` wird die Config NICHT gelöscht (Bugfix in v1.7.7)
+- **WICHTIG:** Seit v1.8.3 wird die JSON-Config bei Erfolg AUTOMATISCH gelöscht!
+- **--keep-config:** Verwenden wenn die Config-Datei erhalten bleiben soll
+- **Dry-Run:** Bei `--dry-run` wird die Config NICHT gelöscht
+- **Bei Fehler:** Config wird NICHT gelöscht (für Debugging)
 
 ---
 
@@ -1078,6 +1112,31 @@ if ($LASTEXITCODE -eq 0) {
   Write-Host "ERROR: Exit-Code $LASTEXITCODE"
 }
 ```
+
+---
+
+## 🆕 Neue Features in Version 1.8.3 (2026-01-29)
+
+### 1. Auto-Delete JSON Config (BREAKING CHANGE!)
+
+**Vorher (v1.7.6 - v1.8.2):** JSON-Config blieb nach Ausführung erhalten, `--delete-config-on-success` löschte sie.
+
+**Jetzt (v1.8.3):** JSON-Config wird bei Erfolg **AUTOMATISCH GELÖSCHT**!
+
+```bash
+# Standard: JSON wird nach Erfolg gelöscht
+StrEditor.exe --config "ops.json"
+# Output: "Config file deleted successfully"
+
+# Config behalten (für Debugging)
+StrEditor.exe --config "ops.json" --keep-config
+# Output: "Config file preserved (--keep-config)"
+```
+
+**Warum diese Änderung?**
+- AI-Agenten vergessen oft `--delete-config-on-success`
+- JSON-Dateien sammeln sich im Workspace an
+- Der saubere Weg sollte der DEFAULT sein!
 
 ---
 

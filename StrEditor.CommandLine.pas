@@ -99,7 +99,7 @@ Type
     // Indent/Unindent
     IndentSpaces      : Integer;      // Number of spaces for indent/unindent (default: 2)
     // Config Options
-    DeleteConfigOnSuccess : Boolean;  // Delete JSON config file after successful execution
+    KeepConfig        : Boolean;      // Keep JSON config file after successful execution (default: false = auto-delete)
   end;
 
   {$REGION 'Documentation'}
@@ -518,10 +518,10 @@ begin
 
   if aParams.ConfigFile <> '' then
     begin
-      aParams.DeleteConfigOnSuccess := HasParam( '--delete-config-on-success' );
-      aParams.Backup                := HasParam( '--backup' );
-      aParams.DryRun                := HasParam( '--dry-run' );
-      aParams.Verbose               := HasParam( '--verbose' );
+      aParams.KeepConfig := HasParam( '--keep-config' );
+      aParams.Backup     := HasParam( '--backup' );
+      aParams.DryRun     := HasParam( '--dry-run' );
+      aParams.Verbose    := HasParam( '--verbose' );
       Result := true;
       Exit;
     end;
@@ -1131,8 +1131,11 @@ begin
   WriteLn( '===================================' );
   WriteLn;
   WriteLn( 'Usage:' );
-  WriteLn( '  --config <file.json>' );
-  WriteLn( '  --config <file.json> --delete-config-on-success  # Delete JSON after success' );
+  WriteLn( '  --config <file.json>              # JSON is AUTO-DELETED on success!' );
+  WriteLn( '  --config <file.json> --keep-config  # Keep JSON file after success' );
+  WriteLn;
+  WriteLn( 'IMPORTANT: JSON config file is AUTOMATICALLY DELETED after successful execution!' );
+  WriteLn( '           Use --keep-config to preserve the file.' );
   WriteLn;
   WriteLn( 'Single Operation JSON:' );
   WriteLn( '  {' );
@@ -1144,7 +1147,7 @@ begin
   WriteLn( 'Multiple Operations JSON:' );
   WriteLn( '  {' );
   WriteLn( '    "operations": [' );
-  WriteLn( '      { "file": "a.pas", "command": "delete-line", "delete-line": 25 },' );
+  WriteLn( '      { "file": "a.pas", "command": "delete-line", "line": 25 },' );
   WriteLn( '      { "file": "b.pas", "command": "insert-after", "insert-after-line": 10,' );
   WriteLn( '        "text-lines": ["Line 1", "Line 2"] }' );
   WriteLn( '    ]' );
@@ -1156,10 +1159,12 @@ begin
   WriteLn;
   WriteLn( 'Available Commands:' );
   WriteLn( '  str-replace, insert, insert-after, insert-before, regex-replace,' );
-  WriteLn( '  delete-line, delete-lines, replace-line, replace-lines, move-lines' );
+  WriteLn( '  delete-line, delete-lines, replace-line, replace-lines, move-lines,' );
+  WriteLn( '  indent, unindent' );
   WriteLn;
   WriteLn( 'Example:' );
-  WriteLn( '  StrEditor.exe --config "ops.json" --delete-config-on-success' );
+  WriteLn( '  StrEditor.exe --config "ops.json"              # JSON auto-deleted' );
+  WriteLn( '  StrEditor.exe --config "ops.json" --keep-config  # JSON preserved' );
 end;
 
 class procedure TCommandLineParser.ShowHelpMove;
@@ -1248,35 +1253,20 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.8.2' );
-  WriteLn( 'Build: 2026-01-26' );
+  WriteLn( 'StrEditor v1.8.3' );
+  WriteLn( 'Build: 2026-01-29' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
-  WriteLn( 'New in v1.8.2:' );
-  WriteLn( '  - Indent Lines (--indent-lines): Add spaces at line beginnings' );
-  WriteLn( '  - Unindent Lines (--unindent-lines): Remove spaces from line beginnings' );
-  WriteLn( '  - Parameters: --start-line, --end-line, --spaces (default: 2)' );
-  WriteLn( '  - JSON config support: "command": "indent" / "unindent"' );
-  WriteLn;
-  WriteLn( 'New in v1.8.1:' );
-  WriteLn( '  - Hex-Dump Output (--show --hex): Display file as hex dump for encoding debugging' );
-  WriteLn( '  - Base64 Output (--show --base64): Display file as Base64 string' );
-  WriteLn( '  - Byte-based --head/--tail in hex/base64 modes' );
-  WriteLn( '  - Original Line Numbers: JSON config line numbers refer to original file state' );
-  WriteLn( '  - TrailingLineBreak Preservation: Files without trailing CRLF are preserved' );
-  WriteLn;
-  WriteLn( 'New in v1.8.0:' );
-  WriteLn( '  - text-lines Array: Multi-line JSON without escaping (use: "text-lines": ["Line1", "Line2"])' );
-  WriteLn( '  - replace-lines Command: Replace line ranges in JSON config' );
-  WriteLn( '  - Warning: Detects literal \r\n in parameters and shows warning' );
-  WriteLn( '  - Categorized Help: Use --help <category> (replace, insert, delete, show, encoding, config, move, repair)' );
-  WriteLn( '  - Parameter Aliases: --ib, --ia, --dl, --rl, --ob64, --nb64' );
+  WriteLn( 'New in v1.8.3:' );
+  WriteLn( '  - Auto-Delete JSON Config: JSON config files are automatically deleted on success' );
+  WriteLn( '  - Use --keep-config to preserve the JSON file after execution' );
+  WriteLn( '  - BREAKING CHANGE: --delete-config-on-success removed (now default behavior)' );
   WriteLn;
   WriteLn( 'Previous versions:' );
-  WriteLn( '  v1.7.7: Bugfix --delete-config-on-success respects --dry-run' );
-  WriteLn( '  v1.7.6:' );
-  WriteLn( '  - Delete Config on Success (--delete-config-on-success)' );
-  WriteLn( '  - Automatically deletes JSON config file after successful execution' );
+  WriteLn( '  v1.8.2: Indent/Unindent Lines (--indent-lines, --unindent-lines)' );
+  WriteLn( '  v1.8.1: Hex-Dump (--hex), Base64 (--base64), Original Line Numbers' );
+  WriteLn( '  v1.8.0: text-lines Array, replace-lines Command' );
+  WriteLn( '  v1.7.x: Delete/Replace Lines, Move Lines, JSON Config' );
   WriteLn;
   WriteLn( 'New in v1.7.5:' );
   WriteLn( '  - Move Lines (--move-lines --from <src> --to <dst> --start-line <n> --end-line <m>)' );

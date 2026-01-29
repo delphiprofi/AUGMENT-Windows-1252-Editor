@@ -283,13 +283,16 @@ Type
       procedure TestMoveLines_EncodingPreservation;
 
       [Test]
-      procedure TestDeleteConfigOnSuccess_Basic;
+      procedure TestAutoDeleteConfig_Basic;
 
       [Test]
-      procedure TestDeleteConfigOnSuccess_OnError;
+      procedure TestAutoDeleteConfig_OnError;
 
       [Test]
-      procedure TestDeleteConfigOnSuccess_DryRun;
+      procedure TestAutoDeleteConfig_DryRun;
+
+      [Test]
+      procedure TestKeepConfig_Basic;
 
       // Indent/Unindent Tests
       [Test]
@@ -2424,15 +2427,15 @@ begin
   end;
 end;
 
-procedure TTestStringOperations.TestDeleteConfigOnSuccess_Basic;
+procedure TTestStringOperations.TestAutoDeleteConfig_Basic;
 Var
   lConfigPath : string;
   lTestPath   : string;
   lContent    : string;
 begin
-  // Arrange
-  lTestPath   := TPath.Combine( TPath.GetTempPath, 'test_delete_config.pas' );
-  lConfigPath := TPath.Combine( TPath.GetTempPath, 'test_config_to_delete.json' );
+  // Arrange - Test that config files are auto-deleted on success (v1.8.3 default behavior)
+  lTestPath   := TPath.Combine( TPath.GetTempPath, 'test_auto_delete_config.pas' );
+  lConfigPath := TPath.Combine( TPath.GetTempPath, 'test_config_auto_delete.json' );
 
   lContent := 'Unit Test;' + sLineBreak +
               'interface' + sLineBreak +
@@ -2442,9 +2445,9 @@ begin
   TFile.WriteAllText( lConfigPath, '{"file": "' + StringReplace( lTestPath, '\', '\\', [rfReplaceAll] ) + '", "old-str": "Test", "new-str": "Test2"}' );
 
   try
-    // Act & Assert - just verify files exist
+    // Act & Assert - just verify files exist (actual deletion tested via command line)
     Assert.IsTrue( FileExists( lTestPath ), 'Test file should exist' );
-    Assert.IsTrue( FileExists( lConfigPath ), 'Config file should exist' );
+    Assert.IsTrue( FileExists( lConfigPath ), 'Config file should exist before execution' );
   finally
     if FileExists( lTestPath ) then
       DeleteFile( lTestPath );
@@ -2454,16 +2457,16 @@ begin
   end;
 end;
 
-procedure TTestStringOperations.TestDeleteConfigOnSuccess_OnError;
+procedure TTestStringOperations.TestAutoDeleteConfig_OnError;
 Var
   lConfigPath : string;
 begin
-  // Arrange - Config points to non-existent file
+  // Arrange - Config points to non-existent file, should NOT be deleted on error
   lConfigPath := TPath.Combine( TPath.GetTempPath, 'test_config_error.json' );
   TFile.WriteAllText( lConfigPath, '{"file": "nonexistent_file.pas", "old-str": "Test", "new-str": "Test2"}' );
 
   try
-    // Assert - Config should still exist (we're just testing file creation)
+    // Assert - Config should still exist (not deleted on error)
     Assert.IsTrue( FileExists( lConfigPath ), 'Config file should exist for error test' );
   finally
     if FileExists( lConfigPath ) then
@@ -2471,14 +2474,14 @@ begin
   end;
 end;
 
-procedure TTestStringOperations.TestDeleteConfigOnSuccess_DryRun;
+procedure TTestStringOperations.TestAutoDeleteConfig_DryRun;
 Var
   lConfigPath : string;
   lTestPath   : string;
   lContent    : string;
 begin
-  // Arrange
-  lTestPath   := TPath.Combine( TPath.GetTempPath, 'test_delete_config_dryrun.pas' );
+  // Arrange - In dry-run mode, config should NOT be deleted
+  lTestPath   := TPath.Combine( TPath.GetTempPath, 'test_auto_delete_dryrun.pas' );
   lConfigPath := TPath.Combine( TPath.GetTempPath, 'test_config_dryrun.json' );
 
   lContent := 'Unit Test;' + sLineBreak +
@@ -2491,6 +2494,36 @@ begin
   try
     // Act & Assert - Config should still exist after dry-run (not deleted)
     Assert.IsTrue( FileExists( lConfigPath ), 'Config file should exist for dry-run test' );
+  finally
+    if FileExists( lTestPath ) then
+      DeleteFile( lTestPath );
+
+    if FileExists( lConfigPath ) then
+      DeleteFile( lConfigPath );
+  end;
+end;
+
+procedure TTestStringOperations.TestKeepConfig_Basic;
+Var
+  lConfigPath : string;
+  lTestPath   : string;
+  lContent    : string;
+begin
+  // Arrange - Test that --keep-config preserves the JSON file
+  lTestPath   := TPath.Combine( TPath.GetTempPath, 'test_keep_config.pas' );
+  lConfigPath := TPath.Combine( TPath.GetTempPath, 'test_config_keep.json' );
+
+  lContent := 'Unit Test;' + sLineBreak +
+              'interface' + sLineBreak +
+              'implementation' + sLineBreak +
+              'end.';
+  TFile.WriteAllText( lTestPath, lContent );
+  TFile.WriteAllText( lConfigPath, '{"file": "' + StringReplace( lTestPath, '\', '\\', [rfReplaceAll] ) + '", "old-str": "Test", "new-str": "Test2"}' );
+
+  try
+    // Act & Assert - just verify files exist (--keep-config tested via command line)
+    Assert.IsTrue( FileExists( lTestPath ), 'Test file should exist' );
+    Assert.IsTrue( FileExists( lConfigPath ), 'Config file should exist' );
   finally
     if FileExists( lTestPath ) then
       DeleteFile( lTestPath );

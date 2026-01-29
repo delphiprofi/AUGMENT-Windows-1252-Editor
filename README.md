@@ -1,8 +1,8 @@
 # AUGMENT-Windows-1252-Editor
 This is a replacement for the built-in str-replace-editor, if you are dealing with legacy code that is not UTF-8 and cannot be migrated!
 
-**Version:** 1.8.2
-**Last Updated:** 2026-01-26
+**Version:** 1.8.3
+**Last Updated:** 2026-01-29
 **License:** MIT License - see [LICENSE.md](LICENSE.md)
 
 ---
@@ -48,7 +48,7 @@ StrEditor is a command-line tool for replacing and inserting text in Delphi sour
 - ✅ **Documentation Viewer**: View documentation files with `--docs` command **[NEW in v1.7.3]**
 - ✅ **Repair Umlauts**: Automatically repair broken umlauts (`--repair-umlauts`) **[NEW in v1.7.4]**
 - ✅ **Move Lines**: Move source code lines between files (`--move-lines`) **[NEW in v1.7.5]**
-- ✅ **Delete Config on Success**: Auto-delete JSON config after success (`--delete-config-on-success`) **[NEW in v1.7.6]**
+- ✅ **Auto-Delete Config**: JSON config is auto-deleted on success (use `--keep-config` to preserve) **[CHANGED in v1.8.3]**
 - ✅ **Indent Lines**: Add spaces at line beginnings (`--indent-lines`) **[NEW in v1.8.2]**
 - ✅ **Unindent Lines**: Remove spaces from line beginnings (`--unindent-lines`) **[NEW in v1.8.2]**
 - ✅ **Hex-Dump Output**: Display file as hex dump for encoding debugging (`--hex`) **[NEW in v1.8.1]**
