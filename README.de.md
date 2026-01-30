@@ -1,8 +1,8 @@
 # AUGMENT-Windows-1252-Editor
 Dies ist ein Ersatz für den eingebauten str-replace-editor, wenn Sie mit Legacy-Code arbeiten, der nicht UTF-8 ist und nicht migriert werden kann!
 
-**Version:** 1.8.3
-**Letztes Update:** 2026-01-29
+**Version:** 1.8.4
+**Letztes Update:** 2026-01-30
 **Lizenz:** MIT License - siehe [LICENSE.md](LICENSE.md)
 
 ---
@@ -48,6 +48,9 @@ StrEditor ist ein Kommandozeilen-Tool zum Ersetzen und Einfügen von Text in Del
 - ✅ **Dokumentations-Viewer**: Dokumentationsdateien anzeigen mit `--docs` Befehl **[NEU in v1.7.3]**
 - ✅ **Umlaute reparieren**: Kaputte Umlaute automatisch reparieren (`--repair-umlauts`) **[NEU in v1.7.4]**
 - ✅ **Zeilen verschieben**: Quellcode-Zeilen zwischen Dateien verschieben (`--move-lines`) **[NEU in v1.7.5]**
+- ✅ **ChangeReport**: Zeigt was geändert wurde nach jeder Operation **[NEU in v1.8.4]**
+- ✅ **SessionLog**: Protokolliert alle Operationen für Fehleranalyse **[NEU in v1.8.4]**
+- ✅ **INI-Config**: ChangeReport und SessionLog via StrEditor.ini konfigurieren **[NEU in v1.8.4]**
 - ✅ **Auto-Delete Config**: JSON-Config wird bei Erfolg automatisch gelöscht (mit `--keep-config` behalten) **[GEÄNDERT in v1.8.3]**
 - ✅ **Zeilen einrücken**: Spaces am Zeilenanfang hinzufügen (`--indent-lines`) **[NEU in v1.8.2]**
 - ✅ **Zeilen ausrücken**: Spaces am Zeilenanfang entfernen (`--unindent-lines`) **[NEU in v1.8.2]**
@@ -175,9 +178,9 @@ Für vollständige Dokumentation siehe:
 
 Das Projekt enthält umfangreiche Unit-Tests:
 
-**Test-Ergebnisse (v1.8.2):**
-- ✅ 182 Tests implementiert
-- ✅ 182 Tests bestanden
+**Test-Ergebnisse (v1.8.4):**
+- ✅ 191 Tests implementiert
+- ✅ 191 Tests bestanden
 - ✅ 0 Tests fehlgeschlagen
 
 ---
