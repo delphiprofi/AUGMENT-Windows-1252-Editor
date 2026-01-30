@@ -4,6 +4,80 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.8.4] - 2026-01-30
+
+### Added
+- **ChangeReport**: Shows what was changed after each operation
+  - Displays old and new content with line numbers
+  - Configurable via `StrEditor.ini`
+  - Enable/disable with `[ChangeReport] Enabled=true`
+
+- **ContextLines**: Shows context lines before/after changes in ChangeReport
+  - `ContextLinesBefore=2` - Lines before the change
+  - `ContextLinesAfter=2` - Lines after the change
+  - Makes it easier to understand where changes occurred
+
+- **SessionLog**: Logs all operations for error analysis
+  - Logs VIEW requests, JSON configs, errors, and successes
+  - Base64-encoded to avoid CRLF issues
+  - Format: `Timestamp|Type|Base64-Data`
+  - Enable with `[SessionLog] Enabled=true` and `LogPath=StrEditor.log`
+
+- **INI-Config**: New `StrEditor.ini` configuration file
+  - Located next to StrEditor.exe
+  - Supports `true/false` and `1/0` for boolean values
+
+### Fixed
+- **TIniFile.ReadBool Bug**: Delphi's `TIniFile.ReadBool` only accepts `0/1`, not `true/false`
+  - Implemented `ReadIniBool()` helper that accepts both formats
+
+### Configuration Example
+```ini
+[ChangeReport]
+Enabled=true
+ShowContent=true
+ContextLinesBefore=2
+ContextLinesAfter=2
+
+[SessionLog]
+Enabled=true
+LogPath=StrEditor.log
+```
+
+### Tests
+- 191 total tests passing
+
+---
+
+## [1.8.3] - 2026-01-29
+
+### Changed (BREAKING)
+- **Auto-Delete JSON Config**: JSON config files are now **automatically deleted** after successful execution
+  - Previous behavior: Config files were kept unless `--delete-config-on-success` was specified
+  - New behavior: Config files are deleted by default, use `--keep-config` to preserve them
+  - Rationale: AI agents often forgot to clean up config files, leading to workspace clutter
+
+### Added
+- **`--keep-config` Parameter**: Preserves JSON config file after successful execution
+  - Use for debugging or when you need to re-run the same config
+  - Example: `StrEditor.exe --config "ops.json" --keep-config`
+
+### Removed
+- **`--delete-config-on-success` Parameter**: No longer needed (now default behavior)
+
+### Documentation
+- **AGENT-RULES-STREDITOR.md**: New strict rules file for AI agents
+  - Prohibits sequential operations on same file
+  - Requires JSON-Config for multiple operations
+  - Requires `text-lines` array for multi-line text (no Base64)
+  - Copy-paste templates for common operations
+- **str-replace-editor.md**: Added critical warning section at top
+
+### Tests
+- 183 total tests passing (+1 new test for `--keep-config`)
+
+---
+
 ## [1.8.2] - 2026-01-26
 
 ### Added
