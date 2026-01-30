@@ -9,6 +9,8 @@ Uses
 , System.Generics.Defaults
 , StrEditor.CommandLine
 , StrEditor.Operations
+, StrEditor.ChangeReport
+, StrEditor.Encoding
 ;
 
 Type
@@ -62,7 +64,21 @@ Type
       ///   Verarbeitet Line-Operationen in der richtigen Reihenfolge (höchste Zeile zuerst)
       /// </summary>
       {$ENDREGION}
-      class function ProcessLineOperations( const aFilePath : string; const aOperations : TArray<TCommandLineParams> ) : Boolean;
+      class function ProcessLineOperations( const aFilePath : string; const aOperations : TArray<TCommandLineParams>; aChangeReport : TChangeReport = NIL ) : Boolean;
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Liest den Inhalt einer bestimmten Zeile aus einer Datei
+      /// </summary>
+      {$ENDREGION}
+      class function GetLineContent( const aFilePath : string; aLineNumber : Integer ) : string;
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Liest den Inhalt mehrerer Zeilen aus einer Datei
+      /// </summary>
+      {$ENDREGION}
+      class function GetLinesContent( const aFilePath : string; aStartLine, aEndLine : Integer ) : string;
   end;
 
 implementation
@@ -103,6 +119,66 @@ begin
     end;
 end;
 
+class function TBatchProcessor.GetLineContent( const aFilePath : string; aLineNumber : Integer ) : string;
+Var
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+begin
+  Result := '';
+
+  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+    Exit;
+
+  try
+    if ( aLineNumber >= 1 ) and ( aLineNumber <= lLines.Count ) then
+      Result := lLines[ aLineNumber - 1 ];
+  finally
+    lLines.Free;
+  end;
+end;
+
+class function TBatchProcessor.GetLinesContent( const aFilePath : string; aStartLine, aEndLine : Integer ) : string;
+Var
+  lLines    : TStringList;
+  lEncoding : TEncodingType;
+  lSB       : TStringBuilder;
+  i         : Integer;
+begin
+  Result := '';
+
+  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+    Exit;
+
+  try
+    if aStartLine < 1 then
+      aStartLine := 1;
+
+    if aEndLine > lLines.Count then
+      aEndLine := lLines.Count;
+
+    if aStartLine > aEndLine then
+      Exit;
+
+    lSB := TStringBuilder.Create;
+
+    try
+      for i := aStartLine to aEndLine do
+        begin
+          if i > aStartLine then
+            lSB.Append( #13#10 );
+
+          lSB.Append( lLines[ i - 1 ] );
+        end;
+
+      Result := lSB.ToString;
+    finally
+      lSB.Free;
+    end;
+  finally
+    lLines.Free;
+  end;
+end;
+
 class function TBatchProcessor.HasLineOperations( const aOperations : TArray<TCommandLineParams> ) : Boolean;
 Var
   lOp : TCommandLineParams;
@@ -122,7 +198,7 @@ begin
     end;
 end;
 
-class function TBatchProcessor.ProcessLineOperations( const aFilePath : string; const aOperations : TArray<TCommandLineParams> ) : Boolean;
+class function TBatchProcessor.ProcessLineOperations( const aFilePath : string; const aOperations : TArray<TCommandLineParams>; aChangeReport : TChangeReport = NIL ) : Boolean;
 Var
   lLineOps : TList<TLineOperation>;
   lOffsets : TList<TLineOffset>;
@@ -135,6 +211,7 @@ Var
   lAdjustedStartLine : Integer;
   lAdjustedEndLine   : Integer;
   lTextLineCount     : Integer;
+  lOldContent        : string;
 begin
   Result   := true;
   lLineOps := TList<TLineOperation>.Create;
@@ -225,14 +302,29 @@ begin
               // Berechne angepasste Zeilennummer basierend auf bisherigen Offsets
               lAdjustedLine := CalculateAdjustedLine( lLineOp.LineNumber, lOffsets );
 
+              // Change-Tracking: Alten Inhalt vor der Operation speichern
+              if aChangeReport <> NIL then
+                begin
+                  lOldContent := GetLineContent( aFilePath, lAdjustedLine );
+                  aChangeReport.BeginOperation( ctDeleteLine, lLineOp.LineNumber );
+                  aChangeReport.SetOldContent( lOldContent );
+                  aChangeReport.SetAdjustedLine( lAdjustedLine );
+                end;
+
               lResult := TStringOperations.DeleteLine( aFilePath, lAdjustedLine, lLineOp.DryRun, lLineOp.Backup, lLineOp.Diff, lLineOp.Verbose );
 
               if not lResult.Success then
                 begin
+                  if aChangeReport <> NIL then
+                    aChangeReport.EndOperation( false, lResult.ErrorMessage );
+
                   WriteLn( 'ERROR: ' + lResult.ErrorMessage );
                   Result := false;
                   Exit;
                 end;
+
+              if aChangeReport <> NIL then
+                aChangeReport.EndOperation( true, '' );
 
               // Offset speichern: Zeilen nach dieser Original-Zeile verschieben sich um -1
               lOffset.AfterOriginalLine := lLineOp.LineNumber;
@@ -246,16 +338,31 @@ begin
               lAdjustedStartLine := CalculateAdjustedLine( lLineOp.StartLine, lOffsets );
               lAdjustedEndLine   := CalculateAdjustedLine( lLineOp.EndLine, lOffsets );
 
+              // Change-Tracking: Alten Inhalt vor der Operation speichern
+              if aChangeReport <> NIL then
+                begin
+                  lOldContent := GetLinesContent( aFilePath, lAdjustedStartLine, lAdjustedEndLine );
+                  aChangeReport.BeginOperation( ctDeleteLines, lLineOp.StartLine );
+                  aChangeReport.SetOldContent( lOldContent );
+                  aChangeReport.SetAdjustedLine( lAdjustedStartLine );
+                end;
+
               if lLineOp.LineNumbers <> ''
                 then lResult := TStringOperations.DeleteLines( aFilePath, lLineOp.LineNumbers, lLineOp.DryRun, lLineOp.Backup, lLineOp.Diff, lLineOp.Verbose )
                 else lResult := TStringOperations.DeleteLines( aFilePath, lAdjustedStartLine, lAdjustedEndLine, lLineOp.DryRun, lLineOp.Backup, lLineOp.Diff, lLineOp.Verbose );
 
               if not lResult.Success then
                 begin
+                  if aChangeReport <> NIL then
+                    aChangeReport.EndOperation( false, lResult.ErrorMessage );
+
                   WriteLn( 'ERROR: ' + lResult.ErrorMessage );
                   Result := false;
                   Exit;
                 end;
+
+              if aChangeReport <> NIL then
+                aChangeReport.EndOperation( true, '' );
 
               // Offset speichern: Anzahl gelöschter Zeilen
               lOffset.AfterOriginalLine := lLineOp.EndLine;
@@ -268,14 +375,30 @@ begin
               // Berechne angepasste Zeilennummer
               lAdjustedLine := CalculateAdjustedLine( lLineOp.LineNumber, lOffsets );
 
+              // Change-Tracking: Alten Inhalt vor der Operation speichern
+              if aChangeReport <> NIL then
+                begin
+                  lOldContent := GetLineContent( aFilePath, lAdjustedLine );
+                  aChangeReport.BeginOperation( ctReplaceLine, lLineOp.LineNumber );
+                  aChangeReport.SetOldContent( lOldContent );
+                  aChangeReport.SetAdjustedLine( lAdjustedLine );
+                  aChangeReport.SetInsertedText( lLineOp.Text );
+                end;
+
               lResult := TStringOperations.ReplaceLine( aFilePath, lAdjustedLine, lLineOp.Text, lLineOp.DryRun, lLineOp.Backup, lLineOp.Diff, lLineOp.Verbose, lLineOp.TextIsBase64 );
 
               if not lResult.Success then
                 begin
+                  if aChangeReport <> NIL then
+                    aChangeReport.EndOperation( false, lResult.ErrorMessage );
+
                   WriteLn( 'ERROR: ' + lResult.ErrorMessage );
                   Result := false;
                   Exit;
                 end;
+
+              if aChangeReport <> NIL then
+                aChangeReport.EndOperation( true, '' );
 
               // Offset speichern: Wenn Text mehrere Zeilen hat, verschieben sich nachfolgende Zeilen
               lTextLineCount := CountTextLines( lLineOp.Text );
@@ -293,14 +416,28 @@ begin
               // Berechne angepasste Zeilennummer
               lAdjustedLine := CalculateAdjustedLine( lLineOp.InsertAfterLine, lOffsets );
 
+              // Change-Tracking: Neuen Inhalt speichern
+              if aChangeReport <> NIL then
+                begin
+                  aChangeReport.BeginOperation( ctInsert, lLineOp.InsertAfterLine );
+                  aChangeReport.SetAdjustedLine( lAdjustedLine );
+                  aChangeReport.SetInsertedText( lLineOp.Text );
+                end;
+
               lResult := TStringOperations.Insert( aFilePath, lLineOp.Text, lAdjustedLine, lLineOp.DryRun, lLineOp.Backup, lLineOp.Diff, lLineOp.TextIsBase64 );
 
               if not lResult.Success then
                 begin
+                  if aChangeReport <> NIL then
+                    aChangeReport.EndOperation( false, lResult.ErrorMessage );
+
                   WriteLn( 'ERROR: ' + lResult.ErrorMessage );
                   Result := false;
                   Exit;
                 end;
+
+              if aChangeReport <> NIL then
+                aChangeReport.EndOperation( true, '' );
 
               // Offset speichern: Eingefügte Zeilen verschieben nachfolgende Zeilen
               lTextLineCount := CountTextLines( lLineOp.Text );
@@ -315,14 +452,28 @@ begin
               // Berechne angepasste Zeilennummer
               lAdjustedLine := CalculateAdjustedLine( lLineOp.InsertBeforeLine, lOffsets );
 
+              // Change-Tracking: Neuen Inhalt speichern
+              if aChangeReport <> NIL then
+                begin
+                  aChangeReport.BeginOperation( ctInsertBefore, lLineOp.InsertBeforeLine );
+                  aChangeReport.SetAdjustedLine( lAdjustedLine );
+                  aChangeReport.SetInsertedText( lLineOp.Text );
+                end;
+
               lResult := TStringOperations.InsertBefore( aFilePath, lLineOp.Text, lAdjustedLine, lLineOp.DryRun, lLineOp.Backup, lLineOp.Diff, lLineOp.TextIsBase64 );
 
               if not lResult.Success then
                 begin
+                  if aChangeReport <> NIL then
+                    aChangeReport.EndOperation( false, lResult.ErrorMessage );
+
                   WriteLn( 'ERROR: ' + lResult.ErrorMessage );
                   Result := false;
                   Exit;
                 end;
+
+              if aChangeReport <> NIL then
+                aChangeReport.EndOperation( true, '' );
 
               // Offset speichern: Eingefügte Zeilen verschieben nachfolgende Zeilen
               // InsertBefore fügt VOR der Zeile ein, also gilt der Offset für Zeilen >= InsertBeforeLine
@@ -339,14 +490,29 @@ begin
               lAdjustedStartLine := CalculateAdjustedLine( lLineOp.StartLine, lOffsets );
               lAdjustedEndLine   := CalculateAdjustedLine( lLineOp.EndLine, lOffsets );
 
+              // Change-Tracking
+              if aChangeReport <> NIL then
+                begin
+                  lOldContent := GetLinesContent( aFilePath, lAdjustedStartLine, lAdjustedEndLine );
+                  aChangeReport.BeginOperation( ctIndent, lLineOp.StartLine );
+                  aChangeReport.SetOldContent( lOldContent );
+                  aChangeReport.SetAdjustedLine( lAdjustedStartLine );
+                end;
+
               lResult := TStringOperations.IndentLines( aFilePath, lAdjustedStartLine, lAdjustedEndLine, lLineOp.IndentSpaces, lLineOp.DryRun, lLineOp.Backup, lLineOp.Diff, lLineOp.Verbose );
 
               if not lResult.Success then
                 begin
+                  if aChangeReport <> NIL then
+                    aChangeReport.EndOperation( false, lResult.ErrorMessage );
+
                   WriteLn( 'ERROR: ' + lResult.ErrorMessage );
                   Result := false;
                   Exit;
                 end;
+
+              if aChangeReport <> NIL then
+                aChangeReport.EndOperation( true, '' );
 
               // Indent ändert keine Zeilenanzahl - kein Offset nötig
             end;
@@ -357,14 +523,29 @@ begin
               lAdjustedStartLine := CalculateAdjustedLine( lLineOp.StartLine, lOffsets );
               lAdjustedEndLine   := CalculateAdjustedLine( lLineOp.EndLine, lOffsets );
 
+              // Change-Tracking
+              if aChangeReport <> NIL then
+                begin
+                  lOldContent := GetLinesContent( aFilePath, lAdjustedStartLine, lAdjustedEndLine );
+                  aChangeReport.BeginOperation( ctUnindent, lLineOp.StartLine );
+                  aChangeReport.SetOldContent( lOldContent );
+                  aChangeReport.SetAdjustedLine( lAdjustedStartLine );
+                end;
+
               lResult := TStringOperations.UnindentLines( aFilePath, lAdjustedStartLine, lAdjustedEndLine, lLineOp.IndentSpaces, lLineOp.DryRun, lLineOp.Backup, lLineOp.Diff, lLineOp.Verbose );
 
               if not lResult.Success then
                 begin
+                  if aChangeReport <> NIL then
+                    aChangeReport.EndOperation( false, lResult.ErrorMessage );
+
                   WriteLn( 'ERROR: ' + lResult.ErrorMessage );
                   Result := false;
                   Exit;
                 end;
+
+              if aChangeReport <> NIL then
+                aChangeReport.EndOperation( true, '' );
 
               // Unindent ändert keine Zeilenanzahl - kein Offset nötig
             end;

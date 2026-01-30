@@ -1253,16 +1253,18 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.8.3' );
-  WriteLn( 'Build: 2026-01-29' );
+  WriteLn( 'StrEditor v1.8.4' );
+  WriteLn( 'Build: 2026-01-30' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
-  WriteLn( 'New in v1.8.3:' );
-  WriteLn( '  - Auto-Delete JSON Config: JSON config files are automatically deleted on success' );
-  WriteLn( '  - Use --keep-config to preserve the JSON file after execution' );
-  WriteLn( '  - BREAKING CHANGE: --delete-config-on-success removed (now default behavior)' );
+  WriteLn( 'New in v1.8.4:' );
+  WriteLn( '  - ChangeReport: Shows what was changed after each operation' );
+  WriteLn( '  - ContextLines: Shows context lines before/after changes' );
+  WriteLn( '  - SessionLog: Logs all operations (VIEW, CONFIG, ERROR) for analysis' );
+  WriteLn( '  - INI-Config: StrEditor.ini for ChangeReport and SessionLog settings' );
   WriteLn;
   WriteLn( 'Previous versions:' );
+  WriteLn( '  v1.8.3: Auto-Delete JSON Config, --keep-config' );
   WriteLn( '  v1.8.2: Indent/Unindent Lines (--indent-lines, --unindent-lines)' );
   WriteLn( '  v1.8.1: Hex-Dump (--hex), Base64 (--base64), Original Line Numbers' );
   WriteLn( '  v1.8.0: text-lines Array, replace-lines Command' );

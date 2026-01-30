@@ -1115,6 +1115,48 @@ if ($LASTEXITCODE -eq 0) {
 
 ---
 
+## 🆕 Neue Features in Version 1.8.4 (2026-01-30)
+
+### 1. ChangeReport - Zeigt was geändert wurde
+
+Nach jeder Operation zeigt StrEditor jetzt an, was geändert wurde:
+
+```
+DELETE line 7:
+       5: procedure Test1;       <- Kontext vorher
+       6: procedure Test2;       <- Kontext vorher
+  -    7: procedure Test3;       <- gelöschte Zeile
+       8: procedure Test4;       <- Kontext nachher
+       9: procedure Test5;       <- Kontext nachher
+```
+
+### 2. SessionLog - Protokolliert alle Operationen
+
+Für die Analyse von Fehlbedienungen durch AI-Agenten:
+- Loggt VIEW-Anfragen, JSON-Configs, Fehler und Erfolge
+- Base64-kodiert (keine CRLF-Probleme)
+- Format: `Timestamp|Type|Base64-Data`
+
+### 3. INI-Config - Konfiguration via StrEditor.ini
+
+Neue Konfigurationsdatei `StrEditor.ini` (neben StrEditor.exe):
+
+```ini
+[ChangeReport]
+Enabled=true
+ShowContent=true
+ContextLinesBefore=2
+ContextLinesAfter=2
+
+[SessionLog]
+Enabled=true
+LogPath=StrEditor.log
+```
+
+⚠️ **WICHTIG:** INI-Datei ohne UTF-8 BOM erstellen! Delphi's TIniFile kann das nicht korrekt lesen.
+
+---
+
 ## 🆕 Neue Features in Version 1.8.3 (2026-01-29)
 
 ### 1. Auto-Delete JSON Config (BREAKING CHANGE!)

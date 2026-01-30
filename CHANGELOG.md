@@ -4,6 +4,51 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.8.4] - 2026-01-30
+
+### Added
+- **ChangeReport**: Shows what was changed after each operation
+  - Displays old and new content with line numbers
+  - Configurable via `StrEditor.ini`
+  - Enable/disable with `[ChangeReport] Enabled=true`
+
+- **ContextLines**: Shows context lines before/after changes in ChangeReport
+  - `ContextLinesBefore=2` - Lines before the change
+  - `ContextLinesAfter=2` - Lines after the change
+  - Makes it easier to understand where changes occurred
+
+- **SessionLog**: Logs all operations for error analysis
+  - Logs VIEW requests, JSON configs, errors, and successes
+  - Base64-encoded to avoid CRLF issues
+  - Format: `Timestamp|Type|Base64-Data`
+  - Enable with `[SessionLog] Enabled=true` and `LogPath=StrEditor.log`
+
+- **INI-Config**: New `StrEditor.ini` configuration file
+  - Located next to StrEditor.exe
+  - Supports `true/false` and `1/0` for boolean values
+
+### Fixed
+- **TIniFile.ReadBool Bug**: Delphi's `TIniFile.ReadBool` only accepts `0/1`, not `true/false`
+  - Implemented `ReadIniBool()` helper that accepts both formats
+
+### Configuration Example
+```ini
+[ChangeReport]
+Enabled=true
+ShowContent=true
+ContextLinesBefore=2
+ContextLinesAfter=2
+
+[SessionLog]
+Enabled=true
+LogPath=StrEditor.log
+```
+
+### Tests
+- 191 total tests passing
+
+---
+
 ## [1.8.3] - 2026-01-29
 
 ### Changed (BREAKING)
