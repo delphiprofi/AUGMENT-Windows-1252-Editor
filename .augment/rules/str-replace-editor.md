@@ -1236,3 +1236,256 @@ StrEditor.exe --file "MyUnit.pas" --show --base64 --tail 16
 ```
 
 ---
+
+
+# ⚠️ HÄUFIGE FEHLER (aus Log-Analyse 2026-02-02)
+
+## ❌ FEHLER 1: Falsche Verwendung von "replace-line" für mehrere Zeilen
+
+**PROBLEM:** Verwendung von `"command": "replace-line"` (SINGULAR) mit `"text-lines"` Array
+
+**WICHTIG:** Es gibt ZWEI verschiedene Commands:
+- `replace-line` (SINGULAR) - Für EINZELNE Zeile
+- `replace-lines` (PLURAL) - Für MEHRERE Zeilen
+
+**FALSCH:**
+```json
+{
+  "operations": [
+    {
+      "file": "test.pas",
+      "command": "replace-line",           // ❌ SINGULAR ist FALSCH für mehrere Zeilen!
+      "replace-line": 100,                 // ❌ Falscher Feldname!
+      "text-lines": [                      // ❌ text-lines passt nicht zu replace-line!
+        "Zeile 1",
+        "Zeile 2",
+        "Zeile 3"
+      ]
+    }
+  ]
+}
+```
+
+**FEHLER:** `ProcessLineOperations failed` - Falsche Kombination von Command und Parametern!
+
+**RICHTIG:**
+```json
+{
+  "operations": [
+    {
+      "file": "test.pas",
+      "command": "replace-lines",          // ✅ RICHTIG für mehrere Zeilen!
+      "start-line": 100,                   // ✅ Start-Zeile
+      "end-line": 102,                     // ✅ End-Zeile
+      "text-lines": [
+        "Zeile 1",
+        "Zeile 2",
+        "Zeile 3"
+      ]
+    }
+  ]
+}
+```
+
+**ODER (sicherer):** delete-lines + insert-after
+```json
+{
+  "operations": [
+    {
+      "file": "test.pas",
+      "command": "delete-lines",
+      "start-line": 100,
+      "end-line": 102
+    },
+    {
+      "file": "test.pas",
+      "command": "insert-after",
+      "insert-after-line": 99,
+      "text-lines": [
+        "Zeile 1",
+        "Zeile 2",
+        "Zeile 3"
+      ]
+    }
+  ]
+}
+```
+
+**MERKE:** Beide Commands existieren, aber für unterschiedliche Zwecke!
+
+**✅ replace-line (SINGULAR) - Für EINZELNE Zeile:**
+```json
+{
+  "operations": [
+    {
+      "file": "test.pas",
+      "command": "replace-line",           // ✅ SINGULAR für EINZELNE Zeile
+      "line": 100,                         // ✅ "line" nicht "replace-line"
+      "text": "Einzelne Zeile"             // ✅ "text" nicht "text-lines"
+    }
+  ]
+}
+```
+
+**✅ replace-lines (PLURAL) - Für MEHRERE Zeilen:**
+```json
+{
+  "operations": [
+    {
+      "file": "test.pas",
+      "command": "replace-lines",          // ✅ PLURAL für MEHRERE Zeilen
+      "start-line": 100,                   // ✅ start-line
+      "end-line": 102,                     // ✅ end-line
+      "text-lines": [                      // ✅ text-lines Array
+        "Zeile 1",
+        "Zeile 2",
+        "Zeile 3"
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## ❌ FEHLER 2: Falscher Feldname "operation" oder "method"
+
+**PROBLEM:** Verwendung von `"operation"` oder `"method"` statt `"command"`
+
+**FALSCH:**
+```json
+{
+  "operations": [
+    {
+      "file": "test.pas",
+      "operation": "delete-line",          // ❌ FALSCH!
+      "line": 100
+    }
+  ]
+}
+```
+
+**ODER:**
+```json
+{
+  "operations": [
+    {
+      "file": "test.pas",
+      "method": "delete-line",             // ❌ FALSCH!
+      "line": 100
+    }
+  ]
+}
+```
+
+**RICHTIG:**
+```json
+{
+  "operations": [
+    {
+      "file": "test.pas",
+      "command": "delete-line",            // ✅ RICHTIG!
+      "line": 100
+    }
+  ]
+}
+```
+
+**MERKE:** Der Feldname ist IMMER `"command"`, niemals `"operation"` oder `"method"`!
+
+---
+
+## ❌ FEHLER 3: Fehlendes "operations" Array
+
+**PROBLEM:** Einzelne Operation ohne `"operations"` Array
+
+**FALSCH:**
+```json
+{
+  "file": "test.pas",
+  "command": "delete-line",
+  "line": 100
+}
+```
+
+**RICHTIG:**
+```json
+{
+  "operations": [                          // ✅ Array erforderlich!
+    {
+      "file": "test.pas",
+      "command": "delete-line",
+      "line": 100
+    }
+  ]
+}
+```
+
+**WICHTIG:** StrEditor erwartet IMMER ein `"operations"` Array, auch wenn nur eine Operation ausgeführt wird!
+
+---
+
+## ✅ ERFOLGREICHE PATTERNS (aus echten Projekten)
+
+### Pattern 1: Zeilen ersetzen (SICHER)
+```json
+{
+  "operations": [
+    {
+      "file": "MyUnit.pas",
+      "command": "delete-lines",
+      "start-line": 100,
+      "end-line": 105
+    },
+    {
+      "file": "MyUnit.pas",
+      "command": "insert-after",
+      "insert-after-line": 99,
+      "text-lines": [
+        "Neue Zeile 1",
+        "Neue Zeile 2",
+        "Neue Zeile 3"
+      ]
+    }
+  ]
+}
+```
+
+### Pattern 2: Mehrere einzelne Zeilen löschen
+```json
+{
+  "operations": [
+    { "file": "MyUnit.pas", "command": "delete-line", "line": 38 },
+    { "file": "MyUnit.pas", "command": "delete-line", "line": 40 },
+    { "file": "MyUnit.pas", "command": "delete-line", "line": 110 },
+    { "file": "MyUnit.pas", "command": "delete-line", "line": 114 }
+  ]
+}
+```
+
+### Pattern 3: Einzelne Zeile ersetzen
+```json
+{
+  "operations": [
+    {
+      "file": "MyUnit.pas",
+      "command": "replace-line",
+      "line": 905,
+      "text": "  if not ( fEntry.BlockType in [ btPDF, btXML, btHTML ] ) then"
+    }
+  ]
+}
+```
+
+---
+
+## 📋 CHECKLISTE: Vor dem Ausführen prüfen!
+
+- [ ] Feldname ist `"command"` (nicht `"operation"` oder `"method"`)
+- [ ] `"operations"` Array vorhanden
+- [ ] Für mehrere Zeilen: `"command": "replace-lines"` mit `"start-line"` und `"end-line"`
+- [ ] Für einzelne Zeile: `"command": "replace-line"` mit `"line"` und `"text"`
+- [ ] Alle Zeilennummern beziehen sich auf ORIGINAL-Datei
+- [ ] Bei mehreren Operationen: Alle im selben `"operations"` Array
+
+---

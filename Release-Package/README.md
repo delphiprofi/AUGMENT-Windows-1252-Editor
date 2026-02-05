@@ -1,8 +1,8 @@
 # AUGMENT-Windows-1252-Editor
 This is a replacement for the built-in str-replace-editor, if you are dealing with legacy code that is not UTF-8 and cannot be migrated!
 
-**Version:** 1.8.4
-**Last Updated:** 2026-01-30
+**Version:** 1.8.6
+**Last Updated:** 2026-02-05
 **License:** MIT License - see [LICENSE.md](LICENSE.md)
 
 ---
@@ -78,6 +78,7 @@ StrEditor is a command-line tool for replacing and inserting text in Delphi sour
 - ✅ **Line-Ending-Preservation**: CRLF (Windows) is preserved
 - ✅ **Exit-Codes**: Clear exit codes for automation
 - ✅ **Verbose Mode**: Detailed output for debugging
+- ✅ **Range Parameter**: Show specific line ranges with `--range <start>,<end>` **[NEW in v1.8.6]**
 
 ---
 

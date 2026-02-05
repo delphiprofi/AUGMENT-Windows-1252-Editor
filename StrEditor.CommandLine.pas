@@ -170,6 +170,9 @@ implementation
 { TCommandLineParser }
 
 class function TCommandLineParser.Parse( out aParams : TCommandLineParams ) : Boolean;
+Var
+  lRangeValue : string;
+  lParts      : TArray<string>;
 begin
   Result := false;
 
@@ -299,6 +302,34 @@ begin
           if HasParam( '--tail' )
             then aParams.ShowTail := StrToIntDef( GetParamValue( '--tail' ), 0 )
             else aParams.ShowTail := StrToIntDef( GetParamValue( '--last' ), 0 );
+        end;
+
+      // --range <start>,<end> Parameter (z.B. --range 10,20)
+      if HasParam( '--range' ) then
+        begin
+          lRangeValue := GetParamValue( '--range' );
+          lParts      := lRangeValue.Split( [ ',' ] );
+
+          if Length( lParts ) <> 2 then
+            begin
+              ShowError( 'Invalid --range format. Expected: --range <start>,<end>' );
+              Exit;
+            end;
+
+          aParams.StartLine := StrToIntDef( Trim( lParts[ 0 ] ), 0 );
+          aParams.EndLine   := StrToIntDef( Trim( lParts[ 1 ] ), 0 );
+
+          if ( aParams.StartLine <= 0 ) or ( aParams.EndLine <= 0 ) then
+            begin
+              ShowError( 'Invalid --range values. Both start and end must be > 0' );
+              Exit;
+            end;
+
+          if aParams.EndLine < aParams.StartLine then
+            begin
+              ShowError( 'Invalid --range: end must be >= start' );
+              Exit;
+            end;
         end;
 
       if HasParam( '--start-line' ) then
@@ -519,6 +550,22 @@ begin
   if aParams.ConfigFile <> '' then
     begin
       aParams.KeepConfig := HasParam( '--keep-config' );
+
+      // Deprecation-Warnung für --keep-config
+      if aParams.KeepConfig then
+        begin
+          WriteLn( ErrOutput, '' );
+          WriteLn( ErrOutput, '╔════════════════════════════════════════════════════════════════════════════╗' );
+          WriteLn( ErrOutput, '║ WARNING: --keep-config is DEPRECATED and makes NO SENSE!                  ║' );
+          WriteLn( ErrOutput, '║                                                                            ║' );
+          WriteLn( ErrOutput, '║ JSON config files are TEMPORARY operation instructions, not data files!   ║' );
+          WriteLn( ErrOutput, '║ They should be auto-deleted after successful execution.                   ║' );
+          WriteLn( ErrOutput, '║                                                                            ║' );
+          WriteLn( ErrOutput, '║ This parameter will be REMOVED in a future version.                       ║' );
+          WriteLn( ErrOutput, '╚════════════════════════════════════════════════════════════════════════════╝' );
+          WriteLn( ErrOutput, '' );
+        end;
+
       aParams.Backup     := HasParam( '--backup' );
       aParams.DryRun     := HasParam( '--dry-run' );
       aParams.Verbose    := HasParam( '--verbose' );
@@ -1081,11 +1128,12 @@ begin
   WriteLn( '  --file <file> --cat           # Alias for --show' );
   WriteLn;
   WriteLn( 'Options:' );
-  WriteLn( '  --head <n>        Show first N lines' );
-  WriteLn( '  --tail <n>        Show last N lines' );
-  WriteLn( '  --start-line <n>  Show from line n' );
-  WriteLn( '  --end-line <n>    Show until line n' );
-  WriteLn( '  --line-numbers    Show line numbers' );
+  WriteLn( '  --head <n>           Show first N lines' );
+  WriteLn( '  --tail <n>           Show last N lines' );
+  WriteLn( '  --range <start>,<end>  Show lines from start to end (e.g., --range 10,20)' );
+  WriteLn( '  --start-line <n>     Show from line n' );
+  WriteLn( '  --end-line <n>       Show until line n' );
+  WriteLn( '  --line-numbers       Show line numbers' );
   WriteLn( '  --raw             Output as single string' );
   WriteLn( '  --hex             Show raw bytes as hex dump (16 bytes per line)' );
   WriteLn( '  --base64          Output file content as Base64 string' );
@@ -1098,6 +1146,7 @@ begin
   WriteLn;
   WriteLn( 'Examples:' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --head 10 --line-numbers' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --show --range 50,60' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --start-line 50 --end-line 60' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --hex --tail 32' );
   WriteLn( '  StrEditor.exe --file "test.pas" --show --base64' );
@@ -1253,17 +1302,17 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.8.4' );
-  WriteLn( 'Build: 2026-01-30' );
+  WriteLn( 'StrEditor v1.8.6' );
+  WriteLn( 'Build: 2026-02-05' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
-  WriteLn( 'New in v1.8.4:' );
-  WriteLn( '  - ChangeReport: Shows what was changed after each operation' );
-  WriteLn( '  - ContextLines: Shows context lines before/after changes' );
-  WriteLn( '  - SessionLog: Logs all operations (VIEW, CONFIG, ERROR) for analysis' );
-  WriteLn( '  - INI-Config: StrEditor.ini for ChangeReport and SessionLog settings' );
+  WriteLn( 'New in v1.8.6:' );
+  WriteLn( '  - --range <start>,<end> parameter for --show command (e.g., --show --range 10,20)' );
+  WriteLn( '  - Deprecation warning for --keep-config (will be removed in future version)' );
   WriteLn;
   WriteLn( 'Previous versions:' );
+  WriteLn( '  v1.8.5: Bug Fix: --dry-run with JSON config, Command-line flag priority' );
+  WriteLn( '  v1.8.4: ChangeReport, ContextLines, SessionLog, INI-Config' );
   WriteLn( '  v1.8.3: Auto-Delete JSON Config, --keep-config' );
   WriteLn( '  v1.8.2: Indent/Unindent Lines (--indent-lines, --unindent-lines)' );
   WriteLn( '  v1.8.1: Hex-Dump (--hex), Base64 (--base64), Original Line Numbers' );

@@ -4,6 +4,46 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.8.6] - 2026-02-05
+
+### Added
+- **--range Parameter for --show**: Show specific line ranges with `--range <start>,<end>`
+  - Example: `StrEditor.exe --file "test.pas" --show --range 10,20 --line-numbers`
+  - Validates format (must be `<start>,<end>`)
+  - Validates values (both must be > 0, end >= start)
+  - Works with all other --show options (--line-numbers, --verbose, etc.)
+
+### Changed
+- **Deprecation Warning for --keep-config**: Parameter now shows prominent warning
+  - Displays warning box on stderr when `--keep-config` is used
+  - Explains that JSON config files are temporary operation instructions
+  - Warns that parameter will be removed in future version
+  - Reason: JSON configs should be auto-deleted after successful execution
+
+### Documentation
+- Updated README.md and README.de.md with new features
+- Distributed updated str-replace-editor.md to 12 project locations
+
+---
+
+## [1.8.5] - 2026-02-01
+
+### Fixed
+- **--dry-run Bug with JSON Config**: The `--dry-run` parameter now works correctly when used with `--config`
+  - Previously, `--dry-run` was ignored when loading JSON config files
+  - Root cause: `LoadFromJSON` was overwriting command-line flags with JSON defaults (false)
+  - Fix: Command-line flags are now preserved and have priority over JSON defaults
+  - Affected flags: `--dry-run`, `--backup`, `--verbose`, `--diff`, `--stats`
+
+### Technical Details
+- Modified `StrEditor.Config.pas`: Added command-line flag preservation in `LoadFromJSON`
+- Modified `StrEditor.dpr`: Added flag transfer for multiple operations configs
+
+### Tests
+- 191 total tests passing
+
+---
+
 ## [1.8.4] - 2026-01-30
 
 ### Added
