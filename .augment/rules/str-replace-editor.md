@@ -154,7 +154,7 @@ StrEditor.exe --file "DATEINAME.pas" --reinterpret-as utf8 --backup --verbose
 
 ## 🔧 StrEditor Integration für Delphi-Dateien
 
-**Version:** 1.8.3 (2026-01-29)
+**Version:** 1.8.6 (2026-02-05)
 
 ### Wichtig: Verwende IMMER StrEditor statt str-replace-editor
 
@@ -1111,6 +1111,47 @@ if ($LASTEXITCODE -eq 0) {
 } else {
   Write-Host "ERROR: Exit-Code $LASTEXITCODE"
 }
+```
+
+---
+
+## 🆕 Neue Features in Version 1.8.6 (2026-02-05)
+
+### 1. --range Parameter für --show
+
+**Problem:** Manchmal will man nur einen bestimmten Zeilenbereich anzeigen, ohne --start-line und --end-line zu verwenden.
+**Lösung:** `--range <start>,<end>` ist eine kompakte Alternative.
+
+```bash
+# Zeige Zeilen 10-20
+StrEditor.exe --file "test.pas" --show --range 10,20 --line-numbers
+
+# Zeige Zeilen 1-5 mit Hex-Dump
+StrEditor.exe --file "test.pas" --show --range 1,5 --hex
+```
+
+**Validierung:**
+- Format muss `<start>,<end>` sein (mit Komma)
+- Beide Werte müssen > 0 sein
+- End muss >= Start sein
+
+### 2. Deprecation-Warnung für --keep-config
+
+**Problem:** `--keep-config` macht keinen Sinn - JSON-Configs sind temporäre Operationsanweisungen, keine Datendateien!
+**Lösung:** Parameter zeigt jetzt deutliche Warnung und wird in Zukunft entfernt.
+
+```bash
+# Zeigt Warnung:
+StrEditor.exe --config "ops.json" --keep-config
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║ WARNING: --keep-config is DEPRECATED and makes NO SENSE!                  ║
+║                                                                            ║
+║ JSON config files are TEMPORARY operation instructions, not data files!   ║
+║ They should be auto-deleted after successful execution.                   ║
+║                                                                            ║
+║ This parameter will be REMOVED in a future version.                       ║
+╚════════════════════════════════════════════════════════════════════════════╝
 ```
 
 ---
