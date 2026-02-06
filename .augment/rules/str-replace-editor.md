@@ -1279,7 +1279,7 @@ StrEditor.exe --file "MyUnit.pas" --show --base64 --tail 16
 ---
 
 
-# ⚠️ HÄUFIGE FEHLER (aus Log-Analyse 2026-02-02)
+# ⚠️ HÄUFIGE FEHLER (aus Log-Analysen 2026-02-02 und 2026-02-06)
 
 ## ❌ FEHLER 1: Falsche Verwendung von "replace-line" für mehrere Zeilen
 
@@ -1466,6 +1466,166 @@ StrEditor.exe --file "MyUnit.pas" --show --base64 --tail 16
 
 ---
 
+## ❌ FEHLER 4: Falscher Parameter-Name bei insert-after (NEU 2026-02-06)
+
+**PROBLEM:** Verwendung von `"line"` statt `"insert-after-line"` bei `insert-after` command
+
+**FALSCH:**
+```json
+{
+  "operations": [
+    {
+      "file": "TreeViewEx.pas",
+      "command": "insert-after",
+      "line": 153,                             // ❌ FALSCH! Muss "insert-after-line" heißen!
+      "text-lines": [
+        "    procedure CMHintShow( var Message : TCMHintShow ); message CM_HINTSHOW;"
+      ]
+    }
+  ]
+}
+```
+
+**FEHLER:** `ProcessLineOperations failed: TreeViewEx.pas`
+
+**RICHTIG:**
+```json
+{
+  "operations": [
+    {
+      "file": "TreeViewEx.pas",
+      "command": "insert-after",
+      "insert-after-line": 153,                // ✅ RICHTIG!
+      "text-lines": [
+        "    procedure CMHintShow( var Message : TCMHintShow ); message CM_HINTSHOW;"
+      ]
+    }
+  ]
+}
+```
+
+**MERKE:**
+- Bei `insert-after` → `"insert-after-line": <n>`
+- Bei `insert-before` → `"insert-before-line": <n>`
+- Bei `delete-line` → `"line": <n>`
+- Bei `replace-line` → `"line": <n>`
+
+---
+
+## ❌ FEHLER 5: text-lines bei replace-line (NEU 2026-02-06)
+
+**PROBLEM:** Verwendung von `"text-lines"` Array bei `replace-line` (SINGULAR)
+
+**FALSCH:**
+```json
+{
+  "operations": [
+    {
+      "file": "eAktenSystem.Frame.pas",
+      "command": "replace-line",               // ❌ replace-line akzeptiert nur "text" (String)!
+      "line": 1371,
+      "text-lines": [                          // ❌ FALSCH! text-lines ist ein Array!
+        "      if not fViewModel.StoreMetadata( @lNrTypEx, lMetadata, lGUID ) then",
+        "        begin",
+        "          AddUltimateLog( log_eAkte, 'StoreMetadata FEHLER: ' + fViewModel.LastError );",
+        "        end;"
+      ]
+    }
+  ]
+}
+```
+
+**FEHLER:** `ProcessLineOperations failed: eAktenSystem.Frame.pas`
+
+**RICHTIG (Methode 1): delete-line + insert-after**
+```json
+{
+  "operations": [
+    {
+      "file": "eAktenSystem.Frame.pas",
+      "command": "delete-line",
+      "line": 1371
+    },
+    {
+      "file": "eAktenSystem.Frame.pas",
+      "command": "insert-after",
+      "insert-after-line": 1370,
+      "text-lines": [
+        "      if not fViewModel.StoreMetadata( @lNrTypEx, lMetadata, lGUID ) then",
+        "        begin",
+        "          AddUltimateLog( log_eAkte, 'StoreMetadata FEHLER: ' + fViewModel.LastError );",
+        "        end;"
+      ]
+    }
+  ]
+}
+```
+
+**RICHTIG (Methode 2): replace-lines (PLURAL)**
+```json
+{
+  "operations": [
+    {
+      "file": "eAktenSystem.Frame.pas",
+      "command": "replace-lines",              // ✅ PLURAL für mehrere Zeilen!
+      "start-line": 1371,
+      "end-line": 1371,                        // Auch wenn nur 1 Zeile ersetzt wird
+      "text-lines": [
+        "      if not fViewModel.StoreMetadata( @lNrTypEx, lMetadata, lGUID ) then",
+        "        begin",
+        "          AddUltimateLog( log_eAkte, 'StoreMetadata FEHLER: ' + fViewModel.LastError );",
+        "        end;"
+      ]
+    }
+  ]
+}
+```
+
+**MERKE:**
+- `replace-line` (SINGULAR) → nur `"text"` (String), NICHT `"text-lines"`!
+- Um EINE Zeile durch MEHRERE zu ersetzen → `delete-line` + `insert-after` ODER `replace-lines`
+
+---
+
+## ❌ FEHLER 6: Umlaute ohne Base64-Encoding (NEU 2026-02-06)
+
+**PROBLEM:** Umlaute (ü, ö, ä) direkt in JSON führen zu Encoding-Problemen
+
+**FALSCH:**
+```json
+{
+  "operations": [
+    {
+      "file": "eAkte.pas",
+      "command": "replace-line",
+      "line": 42,
+      "text": "    class Function  IsSaveToEAkte(const aDialogText : String = '') : boolean; // Hier kann ein Text für einen Dialog übergeben werden..."
+    }
+  ]
+}
+```
+
+**FEHLER:** Umlaute werden falsch kodiert (ü → ?, ö → ?, ä → ?)
+
+**RICHTIG:**
+```json
+{
+  "operations": [
+    {
+      "file": "eAkte.pas",
+      "command": "replace-line",
+      "line": 42,
+      "text": "ICAgIGNsYXNzIEZ1bmN0aW9uICBJc1NhdmVUb0VBa3RlKGNvbnN0IGFEaWFsb2dUZXh0IDogU3RyaW5nID0gJycpIDogYm9vbGVhbjsgLy8gSGllciBrYW5uIGVpbiBUZXh0IGb8ciBlaW5lbiBEaWFsb2cg/GJlcmdlYmVuIHdlcmRlbi4uLg==",
+      "text-base64-encoded": true              // ✅ WICHTIG!
+    }
+  ]
+}
+```
+
+**MERKE:** Bei Umlauten IMMER Base64-Encoding verwenden mit `"text-base64-encoded": true`
+
+---
+
 ## ✅ ERFOLGREICHE PATTERNS (aus echten Projekten)
 
 ### Pattern 1: Zeilen ersetzen (SICHER)
@@ -1526,6 +1686,10 @@ StrEditor.exe --file "MyUnit.pas" --show --base64 --tail 16
 - [ ] `"operations"` Array vorhanden
 - [ ] Für mehrere Zeilen: `"command": "replace-lines"` mit `"start-line"` und `"end-line"`
 - [ ] Für einzelne Zeile: `"command": "replace-line"` mit `"line"` und `"text"`
+- [ ] **NEU:** Bei `insert-after` → `"insert-after-line"` (NICHT `"line"`!)
+- [ ] **NEU:** Bei `insert-before` → `"insert-before-line"` (NICHT `"line"`!)
+- [ ] **NEU:** Bei `replace-line` → nur `"text"` (String), NICHT `"text-lines"` (Array)!
+- [ ] **NEU:** Bei Umlauten → `"text-base64-encoded": true` verwenden
 - [ ] Alle Zeilennummern beziehen sich auf ORIGINAL-Datei
 - [ ] Bei mehreren Operationen: Alle im selben `"operations"` Array
 
