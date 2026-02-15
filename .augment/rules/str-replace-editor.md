@@ -154,7 +154,7 @@ StrEditor.exe --file "DATEINAME.pas" --reinterpret-as utf8 --backup --verbose
 
 ## 🔧 StrEditor Integration für Delphi-Dateien
 
-**Version:** 1.8.6 (2026-02-05)
+**Version:** 1.9.0 (2026-02-15)
 
 ### Wichtig: Verwende IMMER StrEditor statt str-replace-editor
 
@@ -1112,6 +1112,70 @@ if ($LASTEXITCODE -eq 0) {
   Write-Host "ERROR: Exit-Code $LASTEXITCODE"
 }
 ```
+
+---
+
+## 🆕 Neue Features in Version 1.9.0 (2026-02-15)
+
+### Tolerante JSON-Config Validierung (Postel's Law)
+
+**Problem:** AI-Agenten erzeugen häufig JSON-Configs mit leicht abweichenden Feldnamen (`"action"` statt `"command"`, `"old"` statt `"old-str"`) oder Formaten (Array `[{...}]` statt `{"operations": [...]}`). Diese schlugen bisher fehl (~48% Fehlerquote bei JSON-Configs).
+
+**Lösung:** StrEditor akzeptiert jetzt gängige Varianten tolerant und gibt eine **Warnung auf stderr** aus:
+
+| Geschrieben | Erwartet | Warnung |
+|-------------|----------|---------|
+| `"action": "insert"` | `"command": "insert"` | ✅ akzeptiert + WARNING |
+| `"operation": "insert"` | `"command": "insert"` | ✅ akzeptiert + WARNING |
+| `"replace"` (command) | `"str-replace"` | ✅ akzeptiert + WARNING |
+| `[{...}, {...}]` | `{"operations": [...]}` | ✅ akzeptiert + WARNING |
+| `"file"` auf Top-Level | `"file"` in jeder Operation | ✅ Fallback + WARNING |
+| `"old"` / `"new"` | `"old-str"` / `"new-str"` | ✅ akzeptiert + WARNING |
+| `"search"` / `"replace"` (Felder) | `"old-str"` / `"new-str"` | ✅ akzeptiert + WARNING |
+| `"line-number"` | `"insert-after-line"` | ✅ akzeptiert + WARNING |
+| Backslash in Pfaden | Doppel-Backslash | ⚠️ WARNING wenn Control-Chars erkannt |
+
+**Alle Warnungen gehen auf stderr**, so dass stdout sauber bleibt.
+
+**Beispiel:** Wenn die Config `"action": "insert"` enthält:
+```
+WARNING: [Op 1] Used "action" instead of "command" - accepted, but please use "command"
+```
+
+---
+
+## 🆕 Neue Features in Version 1.8.7 (2026-02-09)
+
+### 1. --filecompare: Dateivergleich auf kaputte Sonderzeichen
+
+**Problem:** Nach Encoding-Konvertierungen oder fehlerhaften Dateioperationen können Sonderzeichen (Umlaute, ß, é, §, •) kaputt gehen. Man braucht einen automatischen Vergleich gegen eine Masterkopie.
+
+**Lösung:** `--filecompare <master-file>` vergleicht eine Datei gegen die Masterkopie.
+
+```bash
+# Einfacher Vergleich
+StrEditor.exe --file "test.pas" --filecompare "master.pas"
+
+# Mit detaillierter Ausgabe
+StrEditor.exe --file "test.pas" --filecompare "master.pas" --verbose
+```
+
+**Logik:**
+1. Encoding beider Dateien prüfen → bei Unterschied: Exit Code 1
+2. Master lesen, alle Sonderzeichen-Positionen mit 20-Zeichen-Kontext extrahieren
+3. Kontext an Sonderzeichen-Positionen in Fragmente aufteilen (robust gegen kaputte Zeichen im Kontext)
+4. File1 zeilenweise durchsuchen per Fragment-Matching
+5. Pro Position: OK / BROKEN / NOT FOUND
+
+**Exit Codes:**
+- `0` = Alle Sonderzeichen stimmen überein
+- `1` = Encoding unterschiedlich (Windows-1252 vs UTF-8)
+- `2` = Sonderzeichen kaputt (mindestens eins falsch)
+- `3` = Zeile nicht gefunden (manuell prüfen)
+
+**Geprüfte Sonderzeichen:** öäüÖÄÜßé§•
+
+**Hilfe:** `StrEditor.exe --help compare`
 
 ---
 

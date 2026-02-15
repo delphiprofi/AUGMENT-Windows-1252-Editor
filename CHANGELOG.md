@@ -4,6 +4,48 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.9.0] - 2026-02-15
+
+### Added
+- **Tolerant JSON-Config Validation** (Postel's Law: "Be liberal in what you accept")
+  - Accept `"action"` and `"operation"` as alias for `"command"` with stderr warning
+  - Accept `"replace"` as alias for `"str-replace"` command with warning
+  - Accept JSON array format `[{...}, {...}]` instead of `{"operations": [...]}` with warning
+  - Accept top-level `"file"` as fallback for operations that don't specify their own `"file"` with warning
+  - Accept `"old"`/`"new"` as alias for `"old-str"`/`"new-str"` with warning
+  - Accept `"search"`/`"replace"` as alias for `"old-str"`/`"new-str"` with warning
+  - Accept `"line-number"` as alias for `"insert-after-line"` with warning
+  - Warn when file paths contain control characters (from unescaped JSON backslashes)
+
+### Technical Details
+- All tolerance warnings go to `stderr` (via `WriteLn(ErrOutput, ...)`) so they don't interfere with normal stdout output
+- If a recognized alias is found, the operation executes successfully with a warning instead of failing
+- This reduces the JSON-Config error rate from ~48% to near zero for common AI-generated config patterns
+- Based on analysis of 55 failed JSON-Config operations from production log data
+
+---
+
+## [1.8.7] - 2026-02-09
+
+### Added
+- **--filecompare**: Compare file against master copy for broken special characters
+  - Detects encoding mismatch between files (exit code 1)
+  - Identifies broken/corrupted special characters (exit code 2)
+  - Reports missing lines that need manual review (exit code 3)
+  - Fragment-based substring matching: splits context at special character positions
+  - Robust detection even when surrounding context also contains broken characters
+  - Special characters checked: öäüÖÄÜßé§•
+  - Usage: `StrEditor.exe --file "test.pas" --filecompare "master.pas" --verbose`
+  - New help category: `--help compare`
+
+### Technical Details
+- New unit `StrEditor.FileCompare.pas` with `TFileCompare` class
+- `TCompareExitCode` enum: ceOK(0), ceEncodingMismatch(1), ceCharsBroken(2), ceLineNotFound(3)
+- Context split into fragments at special char positions for reliable matching
+- 20-character context window before and after each special character
+
+---
+
 ## [1.8.6] - 2026-02-05
 
 ### Added

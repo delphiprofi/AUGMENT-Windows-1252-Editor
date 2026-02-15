@@ -1,8 +1,8 @@
 # AUGMENT-Windows-1252-Editor
 This is a replacement for the built-in str-replace-editor, if you are dealing with legacy code that is not UTF-8 and cannot be migrated!
 
-**Version:** 1.8.6
-**Last Updated:** 2026-02-05
+**Version:** 1.9.0
+**Last Updated:** 2026-02-15
 **License:** MIT License - see [LICENSE.md](LICENSE.md)
 
 ---

@@ -21,6 +21,7 @@ Uses
 , StrEditor.Settings
 , StrEditor.ChangeReport
 , StrEditor.SessionLog
+, StrEditor.FileCompare
 ;
 
 procedure ProcessSingleFile( const aParams : TCommandLineParams );
@@ -844,6 +845,55 @@ begin
              end;
       end;
 
+    ctFileCompare:
+      begin
+        if aParams.FilePath = '' then
+          begin
+            WriteLn( 'ERROR: --file parameter required' );
+            ExitCode := Ord( ecParameterError );
+            Exit;
+          end;
+
+        if aParams.CompareFile = '' then
+          begin
+            WriteLn( 'ERROR: --filecompare <master-file> parameter required' );
+            ExitCode := Ord( ecParameterError );
+            Exit;
+          end;
+
+        if not FileExists( aParams.FilePath ) then
+          begin
+            WriteLn( 'ERROR: File not found: ' + aParams.FilePath );
+            ExitCode := Ord( ecFileNotFound );
+            Exit;
+          end;
+
+        if not FileExists( aParams.CompareFile ) then
+          begin
+            WriteLn( 'ERROR: Master file not found: ' + aParams.CompareFile );
+            ExitCode := Ord( ecFileNotFound );
+            Exit;
+          end;
+
+        Var lCompareResult := TFileCompare.Compare( aParams.FilePath, aParams.CompareFile, aParams.Verbose );
+
+        try
+          // Details ausgeben
+          if lCompareResult.Details <> NIL then
+            begin
+              for Var lDetail in lCompareResult.Details do
+                WriteLn( lDetail );
+            end;
+
+          WriteLn;
+          WriteLn( lCompareResult.Message );
+
+          ExitCode := Ord( lCompareResult.ExitCode );
+        finally
+          FreeAndNIL( lCompareResult.Details );
+        end;
+      end;
+
     else begin
            TCommandLineParser.ShowError( 'Unknown command' );
            ExitCode := Ord( ecParameterError );
@@ -879,6 +929,16 @@ begin
                 TSessionLog.Instance.LogError( 'JSON parse error: ' + lParams.ConfigFile );
                 ExitCode := Ord( ecJSONParseError );
                 Exit;
+              end;
+
+            // FIX v1.8.5: Kommandozeilen-Flags auf alle Operations übertragen
+            for var i := 0 to High( lOperations ) do
+              begin
+                lOperations[ i ].Backup  := lOperations[ i ].Backup or lParams.Backup;
+                lOperations[ i ].DryRun  := lOperations[ i ].DryRun or lParams.DryRun;
+                lOperations[ i ].Diff    := lOperations[ i ].Diff or lParams.Diff;
+                lOperations[ i ].Stats   := lOperations[ i ].Stats or lParams.Stats;
+                lOperations[ i ].Verbose := lOperations[ i ].Verbose or lParams.Verbose;
               end;
 
             WriteLn( 'Config loaded successfully - ' + IntToStr( Length( lOperations ) ) + ' operation(s)' );

@@ -17,7 +17,7 @@ Type
   ///   Command-Typ
   /// </summary>
   {$ENDREGION}
-  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine, ctReplaceLines, ctDocs, ctRepairUmlauts, ctMoveLines, ctIndent, ctUnindent );
+  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine, ctReplaceLines, ctDocs, ctRepairUmlauts, ctMoveLines, ctIndent, ctUnindent, ctFileCompare );
 
   {$REGION 'Documentation'}
   /// <summary>
@@ -100,6 +100,8 @@ Type
     IndentSpaces      : Integer;      // Number of spaces for indent/unindent (default: 2)
     // Config Options
     KeepConfig        : Boolean;      // Keep JSON config file after successful execution (default: false = auto-delete)
+    // FileCompare
+    CompareFile       : string;       // Master file (file2) for --filecompare
   end;
 
   {$REGION 'Documentation'}
@@ -162,6 +164,7 @@ Type
       class procedure ShowHelpConfig;
       class procedure ShowHelpMove;
       class procedure ShowHelpRepair;
+      class procedure ShowHelpCompare;
       class procedure ShowHelpAll;
   end;
 
@@ -420,6 +423,29 @@ begin
       if ( aParams.InsertAfterLine <= 0 ) and ( aParams.InsertBeforeLine <= 0 ) then
         begin
           ShowError( 'Missing required parameter: --insert-after-line or --insert-before-line' );
+          Exit;
+        end;
+
+      Result := true;
+      Exit;
+    end;
+
+  if HasParam( '--filecompare' ) then
+    begin
+      aParams.Command     := ctFileCompare;
+      aParams.FilePath    := GetParamValue( '--file' );
+      aParams.CompareFile := GetParamValue( '--filecompare' );
+      aParams.Verbose     := HasParam( '--verbose' );
+
+      if aParams.FilePath = '' then
+        begin
+          ShowError( 'Missing required parameter: --file <file1>' );
+          Exit;
+        end;
+
+      if aParams.CompareFile = '' then
+        begin
+          ShowError( 'Missing required parameter: --filecompare <master-file>' );
           Exit;
         end;
 
@@ -983,6 +1009,9 @@ begin
   if ( lCategory = 'repair' ) or ( lCategory = 'umlaut' ) then
     ShowHelpRepair
   else
+  if ( lCategory = 'compare' ) or ( lCategory = 'filecompare' ) then
+    ShowHelpCompare
+  else
   if ( lCategory = 'all' ) then
     ShowHelpAll
   else
@@ -995,7 +1024,7 @@ end;
 
 class procedure TCommandLineParser.ShowHelpOverview;
 begin
-  WriteLn( 'StrEditor - String Replace Tool with Encoding Preservation (v1.8.0)' );
+  WriteLn( 'StrEditor - String Replace Tool with Encoding Preservation (v1.9.0)' );
   WriteLn;
   WriteLn( 'Quick Start:' );
   WriteLn( '  StrEditor.exe --file <file> --old-str <old> --new-str <new>     # Replace string' );
@@ -1013,6 +1042,7 @@ begin
   WriteLn( '  config    JSON config file usage' );
   WriteLn( '  move      Move lines between files' );
   WriteLn( '  repair    Repair corrupted umlauts' );
+  WriteLn( '  compare   Compare files for broken special characters' );
   WriteLn( '  all       Show complete help' );
   WriteLn;
   WriteLn( 'Parameter Aliases (v1.8):' );
@@ -1298,19 +1328,61 @@ begin
   WriteLn( String.Create( '=', 60 ) );
   WriteLn;
   ShowHelpRepair;
+  WriteLn;
+  WriteLn( String.Create( '=', 60 ) );
+  WriteLn;
+  ShowHelpCompare;
+end;
+
+class procedure TCommandLineParser.ShowHelpCompare;
+begin
+  WriteLn( 'StrEditor - FILE COMPARE Operations' );
+  WriteLn( '=====================================' );
+  WriteLn;
+  WriteLn( 'Compare file against master for broken special characters:' );
+  WriteLn( '  --file <file1> --filecompare <master-file>' );
+  WriteLn;
+  WriteLn( 'Logic:' );
+  WriteLn( '  1. Detect encoding of both files' );
+  WriteLn( '  2. If encoding differs -> exit with code 1' );
+  WriteLn( '  3. Read master file, collect lines with special chars' );
+  WriteLn( '  4. Check file1 for matching lines using substring matching' );
+  WriteLn( '  5. Report broken/missing special characters' );
+  WriteLn;
+  WriteLn( 'Special characters checked: ' + Chr( $F6 ) + Chr( $E4 ) + Chr( $FC ) + Chr( $D6 ) + Chr( $C4 ) + Chr( $DC ) + Chr( $DF ) + Chr( $E9 ) + Chr( $A7 ) );
+  WriteLn;
+  WriteLn( 'Exit Codes:' );
+  WriteLn( '  0 = OK, all special characters match (or binary identical)' );
+  WriteLn( '  1 = Encoding mismatch between files' );
+  WriteLn( '  2 = Special characters broken (at least one wrong)' );
+  WriteLn( '  3 = Line not found (manual review needed)' );
+  WriteLn( '  4 = BOM difference only (content identical, only BOM differs)' );
+  WriteLn;
+  WriteLn( 'Options:' );
+  WriteLn( '  --verbose    Show detailed comparison output' );
+  WriteLn;
+  WriteLn( 'Examples:' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --filecompare "master.pas"' );
+  WriteLn( '  StrEditor.exe --file "test.pas" --filecompare "master.pas" --verbose' );
 end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.8.6' );
-  WriteLn( 'Build: 2026-02-05' );
+  WriteLn( 'StrEditor v1.9.0' );
+  WriteLn( 'Build: 2026-02-15' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
-  WriteLn( 'New in v1.8.6:' );
-  WriteLn( '  - --range <start>,<end> parameter for --show command (e.g., --show --range 10,20)' );
-  WriteLn( '  - Deprecation warning for --keep-config (will be removed in future version)' );
+  WriteLn( 'New in v1.9.0:' );
+  WriteLn( '  - Tolerant JSON-Config validation (Postel''s Law: accept + warn)' );
+  WriteLn( '  - Accept "action"/"operation" as alias for "command" with warning' );
+  WriteLn( '  - Accept JSON array [{...}] format for multiple operations' );
+  WriteLn( '  - Accept top-level "file" as fallback for operations without "file"' );
+  WriteLn( '  - Accept "old"/"new" as alias for "old-str"/"new-str" with warning' );
+  WriteLn( '  - Warn on unescaped backslashes in file paths' );
   WriteLn;
   WriteLn( 'Previous versions:' );
+  WriteLn( '  v1.8.7: --filecompare, Fragment-based matching' );
+  WriteLn( '  v1.8.6: --range for --show, --keep-config deprecation warning' );
   WriteLn( '  v1.8.5: Bug Fix: --dry-run with JSON config, Command-line flag priority' );
   WriteLn( '  v1.8.4: ChangeReport, ContextLines, SessionLog, INI-Config' );
   WriteLn( '  v1.8.3: Auto-Delete JSON Config, --keep-config' );
@@ -1366,4 +1438,3 @@ begin
 end;
 
 end.
-

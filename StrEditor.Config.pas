@@ -14,7 +14,7 @@ Uses
 Type
   {$REGION 'Documentation'}
   /// <summary>
-  ///   Config File Helper
+  ///   Config File Helper - v1.9.0: Tolerante JSON-Validierung mit Warnungen
   /// </summary>
   {$ENDREGION}
   TConfigHelper = class
@@ -25,6 +25,28 @@ Type
       /// </summary>
       {$ENDREGION}
       class procedure CheckForLiteralBackslashRN( const aParams : TCommandLineParams );
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   V1: Erkennt "action"/"operation" als Alias für "command" mit Warnung
+      /// </summary>
+      {$ENDREGION}
+      class function ResolveCommandField( const aJSON : TJSONObject; const aContext : string ) : string;
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   V4: Erkennt "old"/"new" als Alias für "old-str"/"new-str" mit Warnung
+      /// </summary>
+      {$ENDREGION}
+      class procedure ResolveFieldAliases( const aJSON : TJSONObject; var aParams : TCommandLineParams; const aContext : string );
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   V5: Warnt bei JSON-Escape-Sequenzen in Dateipfaden
+      /// </summary>
+      {$ENDREGION}
+      class procedure CheckFilePathEscaping( const aFilePath : string; const aContext : string );
+
     public
       {$REGION 'Documentation'}
       /// <summary>
@@ -42,7 +64,7 @@ Type
 
       {$REGION 'Documentation'}
       /// <summary>
-      ///   Prüft, ob die Config-Datei mehrere Operationen enthält
+      ///   Prüft, ob die Config-Datei mehrere Operationen enthält (auch Array-Format)
       /// </summary>
       {$ENDREGION}
       class function IsMultipleOperationsConfig( const aConfigPath : string ) : Boolean;
@@ -50,11 +72,116 @@ Type
 
 implementation
 
+// ---------------------------------------------------------------------------
+// V1: Command-Feld mit Alias-Erkennung
+// Akzeptiert "action" und "operation" als Alias für "command" mit Warnung
+// ---------------------------------------------------------------------------
+class function TConfigHelper.ResolveCommandField( const aJSON : TJSONObject; const aContext : string ) : string;
+begin
+  // Zuerst prüfen ob "command" vorhanden ist
+  if aJSON.GetValue( 'command' ) <> NIL then
+    begin
+      Result := aJSON.GetValue<string>( 'command', '' );
+      Exit;
+    end;
+
+  // V1: "action" als Alias akzeptieren
+  if aJSON.GetValue( 'action' ) <> NIL then
+    begin
+      Result := aJSON.GetValue<string>( 'action', '' );
+      WriteLn( ErrOutput, 'WARNING: ' + aContext + ' Used "action" instead of "command" - accepted, but please use "command"' );
+      Exit;
+    end;
+
+  // V1: "operation" als Alias akzeptieren
+  if aJSON.GetValue( 'operation' ) <> NIL then
+    begin
+      Result := aJSON.GetValue<string>( 'operation', '' );
+      WriteLn( ErrOutput, 'WARNING: ' + aContext + ' Used "operation" instead of "command" - accepted, but please use "command"' );
+      Exit;
+    end;
+
+  // V6: Kein Command-Feld gefunden - Default str-replace
+  Result := 'str-replace';
+end;
+
+// ---------------------------------------------------------------------------
+// V4: Feld-Aliase erkennen und mit Warnung akzeptieren
+// ---------------------------------------------------------------------------
+class procedure TConfigHelper.ResolveFieldAliases( const aJSON : TJSONObject; var aParams : TCommandLineParams; const aContext : string );
+begin
+  // "old" als Alias für "old-str"
+  if ( aParams.OldStr = '' ) and ( aJSON.GetValue( 'old' ) <> NIL ) then
+    begin
+      aParams.OldStr := aJSON.GetValue<string>( 'old', '' );
+      WriteLn( ErrOutput, 'WARNING: ' + aContext + ' Used "old" instead of "old-str" - accepted, but please use "old-str"' );
+    end;
+
+  // "new" als Alias für "new-str"
+  if ( aParams.NewStr = '' ) and ( aJSON.GetValue( 'new' ) <> NIL ) then
+    begin
+      aParams.NewStr := aJSON.GetValue<string>( 'new', '' );
+      WriteLn( ErrOutput, 'WARNING: ' + aContext + ' Used "new" instead of "new-str" - accepted, but please use "new-str"' );
+    end;
+
+  // "line-number" als Alias für "insert-after-line"
+  if ( aParams.InsertAfterLine = -1 ) and ( aJSON.GetValue( 'line-number' ) <> NIL ) then
+    begin
+      aParams.InsertAfterLine := aJSON.GetValue<Integer>( 'line-number', -1 );
+      WriteLn( ErrOutput, 'WARNING: ' + aContext + ' Used "line-number" instead of "insert-after-line" - accepted, but please use "insert-after-line"' );
+    end;
+
+  // "replace" als Alias für "new-str" (bei str-replace)
+  if ( aParams.NewStr = '' ) and ( aJSON.GetValue( 'replace' ) <> NIL ) then
+    begin
+      aParams.NewStr := aJSON.GetValue<string>( 'replace', '' );
+      WriteLn( ErrOutput, 'WARNING: ' + aContext + ' Used "replace" instead of "new-str" - accepted, but please use "new-str"' );
+    end;
+
+  // "search" als Alias für "old-str"
+  if ( aParams.OldStr = '' ) and ( aJSON.GetValue( 'search' ) <> NIL ) then
+    begin
+      aParams.OldStr := aJSON.GetValue<string>( 'search', '' );
+      WriteLn( ErrOutput, 'WARNING: ' + aContext + ' Used "search" instead of "old-str" - accepted, but please use "old-str"' );
+    end;
+end;
+
+
+// ---------------------------------------------------------------------------
+// V5: Dateipfad-Escaping prüfen
+// Warnt wenn JSON-Escape-Sequenzen wie \n, \t im Pfad erkannt werden
+// ---------------------------------------------------------------------------
+class procedure TConfigHelper.CheckFilePathEscaping( const aFilePath : string; const aContext : string );
+begin
+  if aFilePath = '' then
+    Exit;
+
+  // Prüfe auf typische JSON-Escape-Artefakte in Dateipfaden
+  if ( Pos( #9, aFilePath ) > 0 ) or   // \t wurde zu Tab
+     ( Pos( #10, aFilePath ) > 0 ) or   // \n wurde zu Newline
+     ( Pos( #13, aFilePath ) > 0 ) then // \r wurde zu CR
+    begin
+      WriteLn( ErrOutput, 'WARNING: ' + aContext + ' File path contains control characters (probably unescaped backslashes in JSON)' );
+      WriteLn( ErrOutput, '  Use double backslashes in JSON: "file": "C:\\path\\to\\file.pas"' );
+      WriteLn( ErrOutput, '  Or use forward slashes: "file": "C:/path/to/file.pas"' );
+    end;
+end;
+
+// ---------------------------------------------------------------------------
+// LoadFromJSON - Lädt eine einzelne Operation aus JSON
+// v1.9.0: Mit toleranter Validierung und Warnungen
+// ---------------------------------------------------------------------------
 class function TConfigHelper.LoadFromJSON( const aConfigPath : string; Var aParams : TCommandLineParams ) : Boolean;
 Var
   lJSON       : TJSONObject;
   lJSONString : string;
   lCommand    : string;
+  // FIX v1.8.5: Kommandozeilen-Flags vor dem Laden speichern
+  lCmdLineBackup  : Boolean;
+  lCmdLineDryRun  : Boolean;
+  lCmdLineDiff    : Boolean;
+  lCmdLineStats   : Boolean;
+  lCmdLineVerbose : Boolean;
 begin
   Result := false;
 
@@ -63,6 +190,13 @@ begin
       WriteLn( 'Error: Config file not found: ' + aConfigPath );
       Exit;
     end;
+
+  // FIX v1.8.5: Kommandozeilen-Flags speichern
+  lCmdLineBackup  := aParams.Backup;
+  lCmdLineDryRun  := aParams.DryRun;
+  lCmdLineDiff    := aParams.Diff;
+  lCmdLineStats   := aParams.Stats;
+  lCmdLineVerbose := aParams.Verbose;
 
   try
     // JSON ist per Definition UTF-8 kodiert - explizit angeben!
@@ -94,11 +228,12 @@ begin
       aParams.OldStrIsBase64   := lJSON.GetValue<Boolean>( 'old-str-base64-encoded', false );
       aParams.NewStrIsBase64   := lJSON.GetValue<Boolean>( 'new-str-base64-encoded', false );
       aParams.TextIsBase64     := lJSON.GetValue<Boolean>( 'text-base64-encoded', false );
-      aParams.Backup           := lJSON.GetValue<Boolean>( 'backup', false );
-      aParams.DryRun           := lJSON.GetValue<Boolean>( 'dry-run', false );
-      aParams.Diff             := lJSON.GetValue<Boolean>( 'diff', false );
-      aParams.Stats            := lJSON.GetValue<Boolean>( 'stats', false );
-      aParams.Verbose          := lJSON.GetValue<Boolean>( 'verbose', false );
+      // FIX v1.8.5: Kommandozeilen-Flags haben Priorität über JSON-Defaults
+      aParams.Backup           := lJSON.GetValue<Boolean>( 'backup', false ) or lCmdLineBackup;
+      aParams.DryRun           := lJSON.GetValue<Boolean>( 'dry-run', false ) or lCmdLineDryRun;
+      aParams.Diff             := lJSON.GetValue<Boolean>( 'diff', false ) or lCmdLineDiff;
+      aParams.Stats            := lJSON.GetValue<Boolean>( 'stats', false ) or lCmdLineStats;
+      aParams.Verbose          := lJSON.GetValue<Boolean>( 'verbose', false ) or lCmdLineVerbose;
       aParams.IndentLevel      := lJSON.GetValue<Integer>( 'indent', 0 );
       aParams.LineNumber       := lJSON.GetValue<Integer>( 'line', -1 );
       aParams.LineNumbers      := lJSON.GetValue<string>( 'lines', '' );
@@ -108,10 +243,21 @@ begin
       aParams.FromFile         := lJSON.GetValue<string>( 'from-file', '' );
       aParams.ToFile           := lJSON.GetValue<string>( 'to-file', '' );
 
-      lCommand := lJSON.GetValue<string>( 'command', 'str-replace' );
+      // V4: Feld-Aliase prüfen und mit Warnung akzeptieren
+      ResolveFieldAliases( lJSON, aParams, '[Single]' );
 
-      if SameText( lCommand, 'str-replace' )
-        then aParams.Command := ctStrReplace
+      // V5: Dateipfad-Escaping prüfen
+      CheckFilePathEscaping( aParams.FilePath, '[Single]' );
+
+      // V1/V6: Command mit Alias-Erkennung
+      lCommand := ResolveCommandField( lJSON, '[Single]' );
+
+      if SameText( lCommand, 'str-replace' ) or SameText( lCommand, 'replace' )
+        then begin
+               if SameText( lCommand, 'replace' ) then
+                 WriteLn( ErrOutput, 'WARNING: [Single] Used command "replace" instead of "str-replace" - accepted, but please use "str-replace"' );
+               aParams.Command := ctStrReplace;
+             end
         else
       if SameText( lCommand, 'insert' ) or SameText( lCommand, 'insert-after' )
         then aParams.Command := ctInsert
@@ -136,6 +282,9 @@ begin
         else
       if SameText( lCommand, 'replace-line' )
         then aParams.Command := ctReplaceLine
+        else
+      if SameText( lCommand, 'replace-lines' )
+        then aParams.Command := ctReplaceLines
         else
       if SameText( lCommand, 'move-lines' )
         then aParams.Command := ctMoveLines
@@ -185,19 +334,27 @@ begin
   end;
 end;
 
+// ---------------------------------------------------------------------------
+// LoadMultipleOperations - Lädt mehrere Operationen aus JSON
+// v1.9.0: V2 (Array-Format), V3 (file-Fallback), V4 (Feld-Aliase)
+// ---------------------------------------------------------------------------
 class function TConfigHelper.LoadMultipleOperations( const aConfigPath : string; out aOperations : TArray<TCommandLineParams> ) : Boolean;
 Var
   lJSON         : TJSONObject;
+  lJSONValue    : TJSONValue;
   lJSONString   : string;
   lOperations   : TJSONArray;
   lOperation    : TJSONValue;
   lParams       : TCommandLineParams;
   lCommand      : string;
   lCase         : string;
+  lTopLevelFile : string;
+  lIsArrayFormat : Boolean;
   i             : Integer;
 begin
   Result := false;
   SetLength( aOperations, 0 );
+  lIsArrayFormat := false;
 
   if not FileExists( aConfigPath ) then
     begin
@@ -208,23 +365,39 @@ begin
   try
     // JSON ist per Definition UTF-8 kodiert - explizit angeben!
     lJSONString := TFile.ReadAllText( aConfigPath, TEncoding.UTF8 );
-    lJSON       := TJSONObject.ParseJSONValue( lJSONString ) as TJSONObject;
+    lJSONValue  := TJSONObject.ParseJSONValue( lJSONString );
 
-    if lJSON = NIL then
+    // V2: Array-Format unterstützen: [{...}, {...}] als Alias für {"operations": [...]}
+    if lJSONValue is TJSONArray then
       begin
-        WriteLn( 'Error: Invalid JSON in config file' );
-        Exit;
-      end;
+        WriteLn( ErrOutput, 'WARNING: JSON is an array [{...}] instead of {"operations": [...]} - accepted, but please use the operations wrapper' );
+        lOperations    := TJSONArray( lJSONValue );
+        lJSON          := NIL;
+        lIsArrayFormat := true;
+        lTopLevelFile  := '';
+      end
+    else if lJSONValue is TJSONObject then
+      begin
+        lJSON := TJSONObject( lJSONValue );
+        lOperations := lJSON.GetValue<TJSONArray>( 'operations' );
+
+        if lOperations = NIL then
+          begin
+            WriteLn( 'Error: No "operations" array found in config file' );
+            lJSON.Free;
+            Exit;
+          end;
+
+        // V3: Top-Level "file" als Fallback merken
+        lTopLevelFile := lJSON.GetValue<string>( 'file', '' );
+      end
+    else begin
+           WriteLn( 'Error: Invalid JSON in config file' );
+           lJSONValue.Free;
+           Exit;
+         end;
 
     try
-      lOperations := lJSON.GetValue<TJSONArray>( 'operations' );
-
-      if lOperations = NIL then
-        begin
-          WriteLn( 'Error: No "operations" array found in config file' );
-          Exit;
-        end;
-
       SetLength( aOperations, lOperations.Count );
 
       for i := 0 to lOperations.Count - 1 do
@@ -288,10 +461,30 @@ begin
           lParams.FromFile         := TJSONObject( lOperation ).GetValue<string>( 'from-file', '' );
           lParams.ToFile           := TJSONObject( lOperation ).GetValue<string>( 'to-file', '' );
 
-          lCommand := TJSONObject( lOperation ).GetValue<string>( 'command', 'str-replace' );
+          Var lOpContext := '[Op ' + IntToStr( i + 1 ) + ']';
 
-          if SameText( lCommand, 'str-replace' )
-            then lParams.Command := ctStrReplace
+          // V4: Feld-Aliase prüfen und mit Warnung akzeptieren
+          ResolveFieldAliases( TJSONObject( lOperation ), lParams, lOpContext );
+
+          // V3: File-Fallback auf Top-Level
+          if ( lParams.FilePath = '' ) and ( lTopLevelFile <> '' ) then
+            begin
+              lParams.FilePath := lTopLevelFile;
+              WriteLn( ErrOutput, 'WARNING: ' + lOpContext + ' No "file" in operation - using top-level "file": ' + lTopLevelFile );
+            end;
+
+          // V5: Dateipfad-Escaping prüfen
+          CheckFilePathEscaping( lParams.FilePath, lOpContext );
+
+          // V1/V6: Command mit Alias-Erkennung
+          lCommand := ResolveCommandField( TJSONObject( lOperation ), lOpContext );
+
+          if SameText( lCommand, 'str-replace' ) or SameText( lCommand, 'replace' )
+            then begin
+                   if SameText( lCommand, 'replace' ) then
+                     WriteLn( ErrOutput, 'WARNING: ' + lOpContext + ' Used command "replace" instead of "str-replace" - accepted, but please use "str-replace"' );
+                   lParams.Command := ctStrReplace;
+                 end
             else
           if SameText( lCommand, 'insert' ) or SameText( lCommand, 'insert-after' )
             then lParams.Command := ctInsert
@@ -360,7 +553,9 @@ begin
 
       Result := true;
     finally
-      lJSON.Free;
+      if lIsArrayFormat
+        then lOperations.Free   // Array war das Root-Element
+        else lJSON.Free;        // Object war das Root-Element
     end;
   except
     on E : Exception do
@@ -371,9 +566,13 @@ begin
   end;
 end;
 
+// ---------------------------------------------------------------------------
+// IsMultipleOperationsConfig - Prüft ob Config mehrere Operationen enthält
+// v1.9.0: V2 - Erkennt auch JSON-Array-Format [{...}, {...}]
+// ---------------------------------------------------------------------------
 class function TConfigHelper.IsMultipleOperationsConfig( const aConfigPath : string ) : Boolean;
 Var
-  lJSON       : TJSONObject;
+  lJSONValue  : TJSONValue;
   lJSONString : string;
 begin
   Result := false;
@@ -384,21 +583,33 @@ begin
   try
     // JSON ist per Definition UTF-8 kodiert - explizit angeben!
     lJSONString := TFile.ReadAllText( aConfigPath, TEncoding.UTF8 );
-    lJSON       := TJSONObject.ParseJSONValue( lJSONString ) as TJSONObject;
+    lJSONValue  := TJSONObject.ParseJSONValue( lJSONString );
 
-    if lJSON = NIL then
+    if lJSONValue = NIL then
       Exit;
 
     try
-      Result := lJSON.GetValue( 'operations' ) <> NIL;
+      // V2: Array-Format ist auch ein Multi-Operations-Config
+      if lJSONValue is TJSONArray then
+        begin
+          Result := true;
+          Exit;
+        end;
+
+      // Standard: Prüfe auf "operations" Key
+      if lJSONValue is TJSONObject then
+        Result := TJSONObject( lJSONValue ).GetValue( 'operations' ) <> NIL;
     finally
-      lJSON.Free;
+      lJSONValue.Free;
     end;
   except
     Result := false;
   end;
 end;
 
+// ---------------------------------------------------------------------------
+// F3: Prüft Parameter auf literal \r\n (4 Zeichen) und gibt Warnung aus
+// ---------------------------------------------------------------------------
 class procedure TConfigHelper.CheckForLiteralBackslashRN( const aParams : TCommandLineParams );
 Const
   cLiteralBackslashRN = '\r\n';  // 4 Zeichen: \, r, \, n
@@ -439,4 +650,3 @@ begin
 end;
 
 end.
-

@@ -1,8 +1,8 @@
 # AUGMENT-Windows-1252-Editor
 Dies ist ein Ersatz für den eingebauten str-replace-editor, wenn Sie mit Legacy-Code arbeiten, der nicht UTF-8 ist und nicht migriert werden kann!
 
-**Version:** 1.8.6
-**Letztes Update:** 2026-02-05
+**Version:** 1.9.0
+**Letztes Update:** 2026-02-15
 **Lizenz:** MIT License - siehe [LICENSE.md](LICENSE.md)
 
 ---
@@ -36,6 +36,7 @@ StrEditor ist ein Kommandozeilen-Tool zum Ersetzen und Einfügen von Text in Del
 
 ### ✨ Hauptfeatures
 
+- ✅ **Dateivergleich**: Datei gegen Masterkopie auf kaputte Sonderzeichen prüfen (`--filecompare`) **[NEU in v1.8.7]**
 - ✅ **Encoding-Preservation**: Windows-1252 und UTF-8 werden korrekt erkannt und erhalten
 - ✅ **Encoding-Erkennung**: Datei-Encoding erkennen (`--detect-encoding`) **[NEU in v1.1]**
 - ✅ **Encoding-Konvertierung**: Zwischen Windows-1252 und UTF-8 konvertieren (`--convert-encoding`) **[NEU in v1.3]**
