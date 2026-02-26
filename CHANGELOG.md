@@ -4,6 +4,25 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.9.1] - 2026-02-26
+
+### Fixed
+- **Retry-Mechanismus für File-Access-Errors** (E/A-Fehler 232, EFOpenError, EFCreateError)
+  - Neue Funktionen: `ReadFileWithRetry()` und `WriteFileWithRetry()` in `StrEditor.Encoding.pas`
+  - 3 Versuche mit 100ms Delay bei File-Access-Errors
+  - Detaillierte Fehlermeldungen mit Dateiname und Retry-Info
+  - Alle 26 File-Access-Aufrufe in `StrEditor.Operations.pas` verwenden jetzt Retry-Mechanismus
+  - Verhindert Race-Conditions und Handle-Leaks bei parallelen Augment-Aufrufen
+
+### Technical Details
+- Exception-Handling für `EInOutError` (E/A-Fehler 232 = "The pipe is being closed")
+- Exception-Handling für `EFOpenError` und `EFCreateError`
+- Andere Exceptions werden nicht wiederholt (z.B. JSON-Parse-Errors)
+- Fehlerausgabe auf `stderr` mit "after 3 retries" Info
+- Basierend auf Log-Analyse: E/A-Fehler 232 war häufigster Fehler (24x) seit 2026-02-12
+
+---
+
 ## [1.9.0] - 2026-02-15
 
 ### Added

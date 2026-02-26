@@ -36,6 +36,7 @@ StrEditor is a command-line tool for replacing and inserting text in Delphi sour
 
 ### ✨ Main Features
 
+- ✅ **File Compare**: Compare file against master for broken special characters (`--filecompare`) **[NEW in v1.8.7]**
 - ✅ **Encoding-Preservation**: Windows-1252 and UTF-8 are correctly detected and preserved
 - ✅ **Encoding Detection**: Detect file encoding (`--detect-encoding`) **[NEW in v1.1]**
 - ✅ **Encoding Conversion**: Convert between Windows-1252 and UTF-8 (`--convert-encoding`) **[NEW in v1.3]**

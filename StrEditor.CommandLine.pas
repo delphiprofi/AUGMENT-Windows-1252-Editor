@@ -580,16 +580,16 @@ begin
       // Deprecation-Warnung für --keep-config
       if aParams.KeepConfig then
         begin
-          WriteLn( ErrOutput, '' );
-          WriteLn( ErrOutput, '╔════════════════════════════════════════════════════════════════════════════╗' );
-          WriteLn( ErrOutput, '║ WARNING: --keep-config is DEPRECATED and makes NO SENSE!                  ║' );
-          WriteLn( ErrOutput, '║                                                                            ║' );
-          WriteLn( ErrOutput, '║ JSON config files are TEMPORARY operation instructions, not data files!   ║' );
-          WriteLn( ErrOutput, '║ They should be auto-deleted after successful execution.                   ║' );
-          WriteLn( ErrOutput, '║                                                                            ║' );
-          WriteLn( ErrOutput, '║ This parameter will be REMOVED in a future version.                       ║' );
-          WriteLn( ErrOutput, '╚════════════════════════════════════════════════════════════════════════════╝' );
-          WriteLn( ErrOutput, '' );
+          WriteLn( '' );
+          WriteLn( '╔════════════════════════════════════════════════════════════════════════════╗' );
+          WriteLn( '║ WARNING: --keep-config is DEPRECATED and makes NO SENSE!                  ║' );
+          WriteLn( '║                                                                            ║' );
+          WriteLn( '║ JSON config files are TEMPORARY operation instructions, not data files!   ║' );
+          WriteLn( '║ They should be auto-deleted after successful execution.                   ║' );
+          WriteLn( '║                                                                            ║' );
+          WriteLn( '║ This parameter will be REMOVED in a future version.                       ║' );
+          WriteLn( '╚════════════════════════════════════════════════════════════════════════════╝' );
+          WriteLn( '' );
         end;
 
       aParams.Backup     := HasParam( '--backup' );
@@ -1368,11 +1368,16 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.9.0' );
-  WriteLn( 'Build: 2026-02-15' );
+  WriteLn( 'StrEditor v1.9.1' );
+  WriteLn( 'Build: 2026-02-26' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
-  WriteLn( 'New in v1.9.0:' );
+  WriteLn( 'New in v1.9.1:' );
+  WriteLn( '  - Retry-Mechanismus für File-Access-Errors (E/A-Fehler 232)' );
+  WriteLn( '  - 3 Versuche mit 100ms Delay bei EInOutError, EFOpenError, EFCreateError' );
+  WriteLn( '  - Verhindert Race-Conditions bei parallelen Augment-Aufrufen' );
+  WriteLn;
+  WriteLn( 'Previous version v1.9.0:' );
   WriteLn( '  - Tolerant JSON-Config validation (Postel''s Law: accept + warn)' );
   WriteLn( '  - Accept "action"/"operation" as alias for "command" with warning' );
   WriteLn( '  - Accept JSON array [{...}] format for multiple operations' );

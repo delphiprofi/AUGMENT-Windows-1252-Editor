@@ -45,10 +45,26 @@ Type
 
       {$REGION 'Documentation'}
       /// <summary>
+      ///   Liest eine Datei mit Retry-Mechanismus (3 Versuche, 100ms Delay)
+      ///   Fängt File-Access-Errors ab: EInOutError, EFOpenError, EFCreateError
+      /// </summary>
+      {$ENDREGION}
+      class function ReadFileWithRetry( const aFilePath : string; out aLines : TStringList; out aEncoding : TEncodingType ) : Boolean;
+
+      {$REGION 'Documentation'}
+      /// <summary>
       ///   Schreibt Zeilen in eine Datei mit dem angegebenen Encoding
       /// </summary>
       {$ENDREGION}
       class function WriteFile( const aFilePath : string; const aLines : TStringList; const aEncoding : TEncodingType ) : Boolean;
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Schreibt eine Datei mit Retry-Mechanismus (3 Versuche, 100ms Delay)
+      ///   Fängt File-Access-Errors ab: EInOutError, EFOpenError, EFCreateError
+      /// </summary>
+      {$ENDREGION}
+      class function WriteFileWithRetry( const aFilePath : string; const aLines : TStringList; const aEncoding : TEncodingType ) : Boolean;
 
       {$REGION 'Documentation'}
       /// <summary>
@@ -91,6 +107,124 @@ begin
             ( aBytes[ 2 ] = $BF );
 end;
 
+class function TEncodingHelper.ReadFileWithRetry( const aFilePath : string; out aLines : TStringList; out aEncoding : TEncodingType ) : Boolean;
+const
+  cMaxRetries = 3;
+  cRetryDelay = 100; // Millisekunden
+Var
+  lAttempt     : Integer;
+  lLastError   : string;
+  lIsFileError : Boolean;
+begin
+  Result := false;
+
+  for lAttempt := 1 to cMaxRetries do
+    begin
+      try
+        Result := ReadFile( aFilePath, aLines, aEncoding );
+        Exit; // Erfolg - keine weiteren Versuche nötig
+      except
+        on E : EInOutError do
+          begin
+            lIsFileError := true;
+            lLastError   := E.Message;
+          end;
+        on E : EFOpenError do
+          begin
+            lIsFileError := true;
+            lLastError   := E.Message;
+          end;
+        on E : EFCreateError do
+          begin
+            lIsFileError := true;
+            lLastError   := E.Message;
+          end;
+        on E : Exception do
+          begin
+            // Andere Exceptions werden nicht wiederholt
+            lIsFileError := false;
+            lLastError   := E.Message;
+          end;
+      end;
+
+      // Wenn es kein File-Error war, nicht wiederholen
+      if not lIsFileError then
+        begin
+          WriteLn( ErrOutput, 'ERROR: ReadFile failed: ' + aFilePath + ': ' + lLastError );
+          Exit;
+        end;
+
+      // Wenn es der letzte Versuch war, Fehler ausgeben
+      if lAttempt = cMaxRetries then
+        begin
+          WriteLn( ErrOutput, 'ERROR: ReadFile failed: ' + aFilePath + ': ' + lLastError + ' (after ' + IntToStr( cMaxRetries ) + ' retries)' );
+          Exit;
+        end;
+
+      // Warte vor dem nächsten Versuch
+      Sleep( cRetryDelay );
+    end;
+end;
+
+class function TEncodingHelper.WriteFileWithRetry( const aFilePath : string; const aLines : TStringList; const aEncoding : TEncodingType ) : Boolean;
+const
+  cMaxRetries = 3;
+  cRetryDelay = 100; // Millisekunden
+Var
+  lAttempt     : Integer;
+  lLastError   : string;
+  lIsFileError : Boolean;
+begin
+  Result := false;
+
+  for lAttempt := 1 to cMaxRetries do
+    begin
+      try
+        Result := WriteFile( aFilePath, aLines, aEncoding );
+        Exit; // Erfolg - keine weiteren Versuche nötig
+      except
+        on E : EInOutError do
+          begin
+            lIsFileError := true;
+            lLastError   := E.Message;
+          end;
+        on E : EFOpenError do
+          begin
+            lIsFileError := true;
+            lLastError   := E.Message;
+          end;
+        on E : EFCreateError do
+          begin
+            lIsFileError := true;
+            lLastError   := E.Message;
+          end;
+        on E : Exception do
+          begin
+            // Andere Exceptions werden nicht wiederholt
+            lIsFileError := false;
+            lLastError   := E.Message;
+          end;
+      end;
+
+      // Wenn es kein File-Error war, nicht wiederholen
+      if not lIsFileError then
+        begin
+          WriteLn( ErrOutput, 'ERROR: WriteFile failed: ' + aFilePath + ': ' + lLastError );
+          Exit;
+        end;
+
+      // Wenn es der letzte Versuch war, Fehler ausgeben
+      if lAttempt = cMaxRetries then
+        begin
+          WriteLn( ErrOutput, 'ERROR: WriteFile failed: ' + aFilePath + ': ' + lLastError + ' (after ' + IntToStr( cMaxRetries ) + ' retries)' );
+          Exit;
+        end;
+
+      // Warte vor dem nächsten Versuch
+      Sleep( cRetryDelay );
+    end;
+end;
+
 class function TEncodingHelper.DetectEncoding( const aFilePath : string ) : TEncodingType;
 Var
   lFileStream : TFileStream;
@@ -101,20 +235,32 @@ begin
   if not FileExists( aFilePath ) then
     Exit;
 
-  lFileStream := TFileStream.Create( aFilePath, fmOpenRead or fmShareDenyWrite );
-  try
-    if lFileStream.Size >= 3 then
-      begin
-        SetLength( lBytes, 3 );
-        lFileStream.Read( lBytes[ 0 ], 3 );
+  lFileStream := NIL;
 
-        if HasUTF8BOM( lBytes ) 
-          then Result := etUTF8
-          else Result := etWindows1252;
-      end
-    else Result := etWindows1252;
+  try
+    try
+      lFileStream := TFileStream.Create( aFilePath, fmOpenRead or fmShareDenyWrite );
+
+      if lFileStream.Size >= 3 then
+        begin
+          SetLength( lBytes, 3 );
+          lFileStream.Read( lBytes[ 0 ], 3 );
+
+          if HasUTF8BOM( lBytes )
+            then Result := etUTF8
+            else Result := etWindows1252;
+        end
+      else Result := etWindows1252;
+    except
+      on E : Exception do
+        begin
+          Result := etUnknown;
+          // Exception wird nicht weitergegeben - Caller prüft Result
+        end;
+    end;
   finally
-    lFileStream.Free;
+    // FileStream IMMER freigeben, auch bei Exception
+    FreeAndNIL( lFileStream );
   end;
 end;
 
@@ -125,8 +271,8 @@ Var
   lContent          : string;
   lHasTrailingBreak : Boolean;
 begin
-  Result   := false;
-  aLines   := NIL;
+  Result    := false;
+  aLines    := NIL;
   aEncoding := etUnknown;
 
   if not FileExists( aFilePath ) then
@@ -134,28 +280,42 @@ begin
 
   aEncoding := DetectEncoding( aFilePath );
 
-  lFileStream := TFileStream.Create( aFilePath, fmOpenRead or fmShareDenyWrite );
+  lFileStream := NIL;
+
   try
-    SetLength( lBytes, lFileStream.Size );
+    try
+      lFileStream := TFileStream.Create( aFilePath, fmOpenRead or fmShareDenyWrite );
 
-    if lFileStream.Size > 0 then
-      lFileStream.Read( lBytes[ 0 ], lFileStream.Size );
+      SetLength( lBytes, lFileStream.Size );
 
-    if aEncoding = etUTF8
-      then lContent := UTF8ToString( lBytes )
-      else lContent := Windows1252ToString( lBytes );
+      if lFileStream.Size > 0 then
+        lFileStream.Read( lBytes[ 0 ], lFileStream.Size );
 
-    // Prüfe ob Original einen Trailing Line Break hat
-    lHasTrailingBreak := ( Length( lContent ) >= 2 ) and
-                         ( lContent[ Length( lContent ) - 1 ] = #13 ) and
-                         ( lContent[ Length( lContent ) ] = #10 );
+      if aEncoding = etUTF8
+        then lContent := UTF8ToString( lBytes )
+        else lContent := Windows1252ToString( lBytes );
 
-    aLines                   := TStringList.Create;
-    aLines.TrailingLineBreak := lHasTrailingBreak;
-    aLines.Text              := lContent;
-    Result                   := true;
+      // Prüfe ob Original einen Trailing Line Break hat
+      lHasTrailingBreak := ( Length( lContent ) >= 2 ) and
+                           ( lContent[ Length( lContent ) - 1 ] = #13 ) and
+                           ( lContent[ Length( lContent ) ] = #10 );
+
+      aLines                   := TStringList.Create;
+      aLines.TrailingLineBreak := lHasTrailingBreak;
+      aLines.Text              := lContent;
+      Result                   := true;
+    except
+      on E : Exception do
+        begin
+          // Bei Exception: aLines freigeben falls bereits erstellt
+          FreeAndNIL( aLines );
+          Result := false;
+          // Exception wird nicht weitergegeben - Caller prüft Result
+        end;
+    end;
   finally
-    lFileStream.Free;
+    // FileStream IMMER freigeben, auch bei Exception
+    FreeAndNIL( lFileStream );
   end;
 end;
 
@@ -176,14 +336,26 @@ begin
     then lBytes := StringToUTF8( lContent )
     else lBytes := StringToWindows1252( lContent );
 
-  lFileStream := TFileStream.Create( aFilePath, fmCreate );
-  try
-    if Length( lBytes ) > 0 then
-      lFileStream.Write( lBytes[ 0 ], Length( lBytes ) );
+  lFileStream := NIL;
 
-    Result := true;
+  try
+    try
+      lFileStream := TFileStream.Create( aFilePath, fmCreate );
+
+      if Length( lBytes ) > 0 then
+        lFileStream.Write( lBytes[ 0 ], Length( lBytes ) );
+
+      Result := true;
+    except
+      on E : Exception do
+        begin
+          Result := false;
+          // Exception wird nicht weitergegeben - Caller prüft Result
+        end;
+    end;
   finally
-    lFileStream.Free;
+    // FileStream IMMER freigeben, auch bei Exception
+    FreeAndNIL( lFileStream );
   end;
 end;
 

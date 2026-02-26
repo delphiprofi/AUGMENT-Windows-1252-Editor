@@ -216,7 +216,7 @@ begin
       Exit;
     end;
 
-  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+  if not TEncodingHelper.ReadFileWithRetry( aFilePath, lLines, lEncoding ) then
     begin
       Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
       Exit;
@@ -285,7 +285,7 @@ begin
               end;
           end;
 
-        if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+        if not TEncodingHelper.WriteFileWithRetry( aFilePath, lLines, lEncoding ) then
           begin
             Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
             Exit;
@@ -330,7 +330,7 @@ begin
       Exit;
     end;
 
-  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+  if not TEncodingHelper.ReadFileWithRetry( aFilePath, lLines, lEncoding ) then
     begin
       Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
       Exit;
@@ -365,7 +365,7 @@ begin
               end;
           end;
 
-        if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+        if not TEncodingHelper.WriteFileWithRetry( aFilePath, lLines, lEncoding ) then
           begin
             Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
             Exit;
@@ -410,7 +410,7 @@ begin
       Exit;
     end;
 
-  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+  if not TEncodingHelper.ReadFileWithRetry( aFilePath, lLines, lEncoding ) then
     begin
       Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
       Exit;
@@ -445,7 +445,7 @@ begin
               end;
           end;
 
-        if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+        if not TEncodingHelper.WriteFileWithRetry( aFilePath, lLines, lEncoding ) then
           begin
             Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
             Exit;
@@ -784,7 +784,7 @@ begin
   lLines  := TStringList.Create;
   lOutput := TStringList.Create;
   try
-    if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+    if not TEncodingHelper.ReadFileWithRetry( aFilePath, lLines, lEncoding ) then
       begin
         Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
         Exit;
@@ -905,7 +905,7 @@ begin
            Exit;
          end;
 
-  if not TEncodingHelper.ReadFile( aFilePath, lLines, lSourceEncoding ) then
+  if not TEncodingHelper.ReadFileWithRetry( aFilePath, lLines, lSourceEncoding ) then
     begin
       Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
       Exit;
@@ -952,7 +952,7 @@ begin
           end;
       end;
 
-    if not TEncodingHelper.WriteFile( aFilePath, lLines, lTargetEncoding ) then
+    if not TEncodingHelper.WriteFileWithRetry( aFilePath, lLines, lTargetEncoding ) then
       begin
         Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
         Exit;
@@ -1035,7 +1035,7 @@ begin
   try
     lLines.Text := lContent;
 
-    if not TEncodingHelper.WriteFile( aFilePath, lLines, lTargetEncoding ) then
+    if not TEncodingHelper.WriteFileWithRetry( aFilePath, lLines, lTargetEncoding ) then
       begin
         Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
         Exit;
@@ -1089,7 +1089,7 @@ begin
       Exit;
     end;
 
-  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+  if not TEncodingHelper.ReadFileWithRetry( aFilePath, lLines, lEncoding ) then
     begin
       Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
       Exit;
@@ -1134,7 +1134,7 @@ begin
           Exit;
         end;
 
-    if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+    if not TEncodingHelper.WriteFileWithRetry( aFilePath, lLines, lEncoding ) then
       begin
         Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
         Exit;
@@ -1166,7 +1166,7 @@ begin
       Exit;
     end;
 
-  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+  if not TEncodingHelper.ReadFileWithRetry( aFilePath, lLines, lEncoding ) then
     begin
       Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
       Exit;
@@ -1219,7 +1219,7 @@ begin
           Exit;
         end;
 
-    if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+    if not TEncodingHelper.WriteFileWithRetry( aFilePath, lLines, lEncoding ) then
       begin
         Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
         Exit;
@@ -1254,7 +1254,7 @@ begin
       Exit;
     end;
 
-  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+  if not TEncodingHelper.ReadFileWithRetry( aFilePath, lLines, lEncoding ) then
     begin
       Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
       Exit;
@@ -1317,7 +1317,7 @@ begin
           Exit;
         end;
 
-    if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+    if not TEncodingHelper.WriteFileWithRetry( aFilePath, lLines, lEncoding ) then
       begin
         Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
         Exit;
@@ -1360,7 +1360,7 @@ begin
     end
     else lText := aNewText;
 
-  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+  if not TEncodingHelper.ReadFileWithRetry( aFilePath, lLines, lEncoding ) then
     begin
       Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
       Exit;
@@ -1406,7 +1406,7 @@ begin
           Exit;
         end;
 
-    if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+    if not TEncodingHelper.WriteFileWithRetry( aFilePath, lLines, lEncoding ) then
       begin
         Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
         Exit;
@@ -1452,14 +1452,14 @@ begin
     end;
 
   // Read source file
-  if not TEncodingHelper.ReadFile( aFromFile, lFromLines, lFromEncoding ) then
+  if not TEncodingHelper.ReadFileWithRetry( aFromFile, lFromLines, lFromEncoding ) then
     begin
       Result.ErrorMessage := 'Failed to read source file: ' + aFromFile;
       Exit;
     end;
 
   // Read target file
-  if not TEncodingHelper.ReadFile( aToFile, lToLines, lToEncoding ) then
+  if not TEncodingHelper.ReadFileWithRetry( aToFile, lToLines, lToEncoding ) then
     begin
       lFromLines.Free;
       Result.ErrorMessage := 'Failed to read target file: ' + aToFile;
@@ -1584,14 +1584,14 @@ begin
       end;
 
     // Write source file
-    if not TEncodingHelper.WriteFile( aFromFile, lFromLines, lFromEncoding ) then
+    if not TEncodingHelper.WriteFileWithRetry( aFromFile, lFromLines, lFromEncoding ) then
       begin
         Result.ErrorMessage := 'Failed to write source file: ' + aFromFile;
         Exit;
       end;
 
     // Write target file
-    if not TEncodingHelper.WriteFile( aToFile, lToLines, lToEncoding ) then
+    if not TEncodingHelper.WriteFileWithRetry( aToFile, lToLines, lToEncoding ) then
       begin
         Result.ErrorMessage := 'Failed to write target file: ' + aToFile;
         Exit;
@@ -1632,7 +1632,7 @@ begin
       Exit;
     end;
 
-  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+  if not TEncodingHelper.ReadFileWithRetry( aFilePath, lLines, lEncoding ) then
     begin
       Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
       Exit;
@@ -1706,7 +1706,7 @@ begin
       end;
 
     // Write file
-    if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+    if not TEncodingHelper.WriteFileWithRetry( aFilePath, lLines, lEncoding ) then
       begin
         Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
         Exit;
@@ -1744,7 +1744,7 @@ begin
       Exit;
     end;
 
-  if not TEncodingHelper.ReadFile( aFilePath, lLines, lEncoding ) then
+  if not TEncodingHelper.ReadFileWithRetry( aFilePath, lLines, lEncoding ) then
     begin
       Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
       Exit;
@@ -1829,7 +1829,7 @@ begin
       end;
 
     // Write file
-    if not TEncodingHelper.WriteFile( aFilePath, lLines, lEncoding ) then
+    if not TEncodingHelper.WriteFileWithRetry( aFilePath, lLines, lEncoding ) then
       begin
         Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
         Exit;
