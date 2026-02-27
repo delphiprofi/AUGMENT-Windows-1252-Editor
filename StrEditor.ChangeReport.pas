@@ -225,11 +225,23 @@ end;
 
 function TChangeReport.GenerateReport : string;
 Var
-  lSB     : TStringBuilder;
-  lChange : TChangeRecord;
-  lLines  : TArray<string>;
-  i       : Integer;
+  lSB           : TStringBuilder;
+  lChange       : TChangeRecord;
+  lLines        : TArray<string>;
+  i             : Integer;
+  lCurrentLines : TStringList;
+  lEncoding     : TEncodingType;
 begin
+  // Finale Zeilenzahl aus der Datei lesen falls noch nicht gesetzt
+  if ( fFinalLineCount = 0 ) and ( fOriginalLineCount > 0 ) then
+    begin
+      if TEncodingHelper.ReadFileWithRetry( fFilePath, lCurrentLines, lEncoding ) then
+        begin
+          fFinalLineCount := lCurrentLines.Count;
+          lCurrentLines.Free;
+        end;
+    end;
+
   lSB := TStringBuilder.Create;
   try
     // Header
@@ -237,7 +249,7 @@ begin
     lSB.AppendLine( 'File: ' + fFilePath );
     lSB.AppendLine( 'Operations: ' + IntToStr( fChanges.Count ) );
 
-    if ( fOriginalLineCount > 0 ) or ( fFinalLineCount > 0 ) then
+    if ( fOriginalLineCount > 0 ) and ( fFinalLineCount > 0 ) then
       begin
         lSB.Append( 'Lines: ' + IntToStr( fOriginalLineCount ) + ' -> ' + IntToStr( fFinalLineCount ) );
 

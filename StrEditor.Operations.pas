@@ -1381,8 +1381,26 @@ begin
       else lOriginal := NIL;
 
     lExpandedText := TMacroExpander.ExpandMacros( lText, aFilePath, aLineNumber );
-    lLines[ aLineNumber - 1 ] := lExpandedText;
-    Result.LinesChanged := 1;
+
+    // Workaround: replace-line mit mehrzeiligem Text (z.B. text-lines mit mehreren Einträgen)
+    // Statt Fehler → Warning + korrekte Behandlung (wie replace-lines)
+    if Pos( #13#10, lExpandedText ) > 0 then
+      begin
+        WriteLn( ErrOutput, 'WARNING: replace-line got multi-line text - splitting into multiple lines (accepted, but please use replace-lines with start-line/end-line/text-lines)' );
+
+        Var lSplitLines := lExpandedText.Split( [ #13#10 ] );
+        lLines.Delete( aLineNumber - 1 );
+
+        for Var k := High( lSplitLines ) downto 0 do
+          lLines.Insert( aLineNumber - 1, lSplitLines[ k ] );
+
+        Result.LinesChanged := Length( lSplitLines );
+      end
+    else
+      begin
+        lLines[ aLineNumber - 1 ] := lExpandedText;
+        Result.LinesChanged := 1;
+      end;
 
     if aDiff then
       begin

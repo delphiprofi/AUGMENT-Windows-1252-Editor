@@ -131,6 +131,13 @@ begin
       WriteLn( ErrOutput, 'WARNING: ' + aContext + ' Used "line-number" instead of "insert-after-line" - accepted, but please use "insert-after-line"' );
     end;
 
+  // "line" als Alias für "insert-after-line"
+  if ( aParams.InsertAfterLine = -1 ) and ( aJSON.GetValue( 'line' ) <> NIL ) then
+    begin
+      aParams.InsertAfterLine := aJSON.GetValue<Integer>( 'line', -1 );
+      WriteLn( ErrOutput, 'WARNING: ' + aContext + ' Used "line" instead of "insert-after-line" - accepted, but please use "insert-after-line"' );
+    end;
+
   // "replace" als Alias für "new-str" (bei str-replace)
   if ( aParams.NewStr = '' ) and ( aJSON.GetValue( 'replace' ) <> NIL ) then
     begin

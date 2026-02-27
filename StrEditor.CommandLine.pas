@@ -1024,7 +1024,7 @@ end;
 
 class procedure TCommandLineParser.ShowHelpOverview;
 begin
-  WriteLn( 'StrEditor - String Replace Tool with Encoding Preservation (v1.9.0)' );
+  WriteLn( 'StrEditor - String Replace Tool with Encoding Preservation (v1.9.3)' );
   WriteLn;
   WriteLn( 'Quick Start:' );
   WriteLn( '  StrEditor.exe --file <file> --old-str <old> --new-str <new>     # Replace string' );
@@ -1368,11 +1368,21 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.9.1' );
-  WriteLn( 'Build: 2026-02-26' );
+  WriteLn( 'StrEditor v1.9.3' );
+  WriteLn( 'Build: 2026-02-27' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
-  WriteLn( 'New in v1.9.1:' );
+  WriteLn( 'New in v1.9.3:' );
+  WriteLn( '  - Workaround: replace-line mit mehrzeiligem Text (text-lines) funktioniert jetzt korrekt' );
+  WriteLn( '  - Text wird aufgeteilt und als mehrere Zeilen eingefuegt statt CRLF einzubetten' );
+  WriteLn( '  - Warning auf stderr: please use replace-lines with start-line/end-line/text-lines' );
+  WriteLn( '  - Alias: "line" als Alias fuer "insert-after-line" in JSON-Config (mit Warning)' );
+  WriteLn;
+  WriteLn( 'Previous version v1.9.2:' );
+  WriteLn( '  - Fix: ChangeReport zeigte "Lines: X -> 0 (-X)" statt korrekter Zeilenzahl' );
+  WriteLn( '  - FinalLineCount wird jetzt nach der Operation aus der Datei gelesen' );
+  WriteLn;
+  WriteLn( 'Previous version v1.9.1:' );
   WriteLn( '  - Retry-Mechanismus für File-Access-Errors (E/A-Fehler 232)' );
   WriteLn( '  - 3 Versuche mit 100ms Delay bei EInOutError, EFOpenError, EFCreateError' );
   WriteLn( '  - Verhindert Race-Conditions bei parallelen Augment-Aufrufen' );

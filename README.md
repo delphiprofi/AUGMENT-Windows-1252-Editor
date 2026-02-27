@@ -1,8 +1,8 @@
 # AUGMENT-Windows-1252-Editor
 This is a replacement for the built-in str-replace-editor, if you are dealing with legacy code that is not UTF-8 and cannot be migrated!
 
-**Version:** 1.9.0
-**Last Updated:** 2026-02-15
+**Version:** 1.9.3
+**Last Updated:** 2026-02-27
 **License:** MIT License - see [LICENSE.md](LICENSE.md)
 
 ---
@@ -36,6 +36,10 @@ StrEditor is a command-line tool for replacing and inserting text in Delphi sour
 
 ### ✨ Main Features
 
+- ✅ **WriteFile Retry**: Reliable file writes with 3 retries and 100ms delay on transient locks **[FIXED in v1.9.3]**
+- ✅ **Tolerant replace-line**: Auto-splits multi-line text instead of corrupting the file (with stderr warning) **[NEW in v1.9.3]**
+- ✅ **JSON Alias `"line"`**: Accepted as alias for `"insert-after-line"` (with stderr warning) **[NEW in v1.9.3]**
+- ✅ **File-Access Retry**: 3 retries with 100ms delay for read/write on locked files **[NEW in v1.9.1]**
 - ✅ **File Compare**: Compare file against master for broken special characters (`--filecompare`) **[NEW in v1.8.7]**
 - ✅ **Encoding-Preservation**: Windows-1252 and UTF-8 are correctly detected and preserved
 - ✅ **Encoding Detection**: Detect file encoding (`--detect-encoding`) **[NEW in v1.1]**

@@ -4,6 +4,37 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.9.3] - 2026-02-27
+
+### Fixed
+- **WriteFileWithRetry: Retry-Mechanismus war komplett wirkungslos**
+  - `WriteFile` fing alle Exceptions intern ab und gab nur `false` zurück → keine Exception kam je bei `WriteFileWithRetry` an
+  - `WriteFileWithRetry` hatte nach `Result := WriteFile(...)` ein unbedingtes `Exit` → Retry-Schleife wurde nie erreicht, auch wenn `Result = false`
+  - Fix: `WriteFile` propagiert Exceptions jetzt nach oben (`try/except` → `try/finally`)
+  - Fix: `WriteFileWithRetry` verlässt die Schleife nur noch bei `Result = true`
+  - Retry funktioniert jetzt korrekt: 3 Versuche mit 100ms Pause bei transienten Dateisperren
+
+- **replace-line mit mehrzeiligem Text korrupte Datei** (Workaround)
+  - `replace-line` + `text-lines` mit mehreren Einträgen bettete CRLF in eine TStringList-Zeile ein
+  - Beim Schreiben entstanden dadurch mehr Zeilen als erwartet → nachfolgende Operationen arbeiteten mit falschen Zeilennummern
+  - Fix: Text wird automatisch aufgeteilt und als mehrere Zeilen korrekt eingefügt
+  - Warning auf stderr: `please use replace-lines with start-line/end-line/text-lines`
+
+### Added
+- **Alias `"line"` für `"insert-after-line"`** in JSON-Config (mit Warning auf stderr)
+
+---
+
+## [1.9.2] - 2026-02-27
+
+### Fixed
+- **ChangeReport: "Lines: X -> 0 (-X)" Ausgabe korrigiert**
+  - `fFinalLineCount` wurde nach der Operation nie gesetzt und blieb immer 0
+  - `GenerateReport` liest jetzt die Datei nach der Operation neu ein um die korrekte Zeilenzahl zu ermitteln
+  - Bedingung von `or` auf `and` geändert: Lines-Zeile wird nur ausgegeben wenn beide Werte bekannt sind
+
+---
+
 ## [1.9.1] - 2026-02-26
 
 ### Fixed

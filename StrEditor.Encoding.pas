@@ -181,7 +181,13 @@ begin
     begin
       try
         Result := WriteFile( aFilePath, aLines, aEncoding );
-        Exit; // Erfolg - keine weiteren Versuche nötig
+
+        if Result then
+          Exit; // Erfolg - nur bei Erfolg beenden
+
+        // WriteFile hat false zurückgegeben ohne Exception - als retriable behandeln
+        lIsFileError := true;
+        lLastError   := 'Write operation returned false';
       except
         on E : EInOutError do
           begin
@@ -339,20 +345,13 @@ begin
   lFileStream := NIL;
 
   try
-    try
-      lFileStream := TFileStream.Create( aFilePath, fmCreate );
+    // Exceptions werden bewusst NICHT gefangen - WriteFileWithRetry soll sie abfangen und ggf. wiederholen
+    lFileStream := TFileStream.Create( aFilePath, fmCreate );
 
-      if Length( lBytes ) > 0 then
-        lFileStream.Write( lBytes[ 0 ], Length( lBytes ) );
+    if Length( lBytes ) > 0 then
+      lFileStream.Write( lBytes[ 0 ], Length( lBytes ) );
 
-      Result := true;
-    except
-      on E : Exception do
-        begin
-          Result := false;
-          // Exception wird nicht weitergegeben - Caller prüft Result
-        end;
-    end;
+    Result := true;
   finally
     // FileStream IMMER freigeben, auch bei Exception
     FreeAndNIL( lFileStream );
