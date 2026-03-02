@@ -4,6 +4,35 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.10.0] - 2026-03-02
+
+### Added
+- **MCP Server Mode (`--mcp`)**: Native JSON-RPC 2.0 server over stdio (TSR mode)
+  - Starts once, stays in memory - zero startup overhead per request
+  - No Node.js, no Python, no dependencies - single EXE
+  - No Base64 encoding needed - strings passed directly via JSON-RPC
+  - Workspace-relative paths resolved automatically from `initialize` params
+
+- **14 MCP Tools**:
+  - `str_replace` - Replace string in file (encoding-aware)
+  - `edit_file` - Batch operations (delete, insert, replace lines)
+  - `show_file` - Show file contents with correct encoding
+  - `detect_encoding` - Detect file encoding (Windows-1252 / UTF-8)
+  - `regex_replace` - Replace text using regex with capture groups
+  - `regex_test` - Test regex pattern (read-only, returns match count)
+  - `move_lines` - Move lines between files or within same file
+  - `indent_lines` - Add indentation to a range of lines
+  - `unindent_lines` - Remove indentation from a range of lines
+  - `convert_encoding` - Convert between UTF-8 and Windows-1252
+  - `repair_umlauts` - Repair broken umlauts using VCS or reference file
+  - `file_compare` - Compare two files for encoding differences
+  - `undo` - Restore from .bak backup file
+  - `restart_server` - Shutdown server for update (host restarts automatically)
+
+- **MCP Client Configs**: Installation docs for Augment, Claude Desktop, Codex CLI
+
+---
+
 ## [1.9.3] - 2026-02-27
 
 ### Fixed

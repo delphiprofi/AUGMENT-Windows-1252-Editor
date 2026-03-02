@@ -3,6 +3,18 @@ type: "agent_requested"
 description: "Example description"
 ---
 
+# ⚠️ HINWEIS: MCP-Server verfügbar!
+
+**Der StrEditor ist als MCP-Server registriert (`streditor`).**
+Wenn die MCP-Tools `str_replace_StrEditor`, `edit_file_StrEditor`, `show_file_StrEditor` etc. verfügbar sind,
+**verwende IMMER die MCP-Tools statt der EXE direkt aufzurufen!**
+
+Die MCP-Tools sind schneller (TSR-Modus), brauchen kein Base64-Encoding und keine JSON-Config-Dateien auf der Platte.
+
+**Die folgenden Regeln gelten nur als Fallback, wenn der MCP-Server NICHT verfügbar ist.**
+
+---
+
 # 🚨🚨🚨 KRITISCHE WARNUNG FÜR AI-AGENTEN 🚨🚨🚨
 
 ## ⛔ NIEMALS SEQUENTIELLE OPERATIONEN AUF DIESELBE DATEI!

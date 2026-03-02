@@ -22,6 +22,7 @@ Uses
 , StrEditor.ChangeReport
 , StrEditor.SessionLog
 , StrEditor.FileCompare
+, StrEditor.MCP
 ;
 
 procedure ProcessSingleFile( const aParams : TCommandLineParams );
@@ -909,6 +910,20 @@ begin
     if not TCommandLineParser.Parse( lParams ) then
       begin
         ExitCode := Ord( ecParameterError );
+        Exit;
+      end;
+
+    // MCP-Server-Modus: TSR-Loop über stdin/stdout
+    if lParams.Command = ctMCPServer then
+      begin
+        Var lMCPServer := TMCPServer.Create;
+        try
+          lMCPServer.Run;
+        finally
+          lMCPServer.Free;
+        end;
+
+        ExitCode := Ord( ecSuccess );
         Exit;
       end;
 

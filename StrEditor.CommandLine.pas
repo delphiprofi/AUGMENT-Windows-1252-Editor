@@ -17,7 +17,7 @@ Type
   ///   Command-Typ
   /// </summary>
   {$ENDREGION}
-  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine, ctReplaceLines, ctDocs, ctRepairUmlauts, ctMoveLines, ctIndent, ctUnindent, ctFileCompare );
+  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine, ctReplaceLines, ctDocs, ctRepairUmlauts, ctMoveLines, ctIndent, ctUnindent, ctFileCompare, ctMCPServer );
 
   {$REGION 'Documentation'}
   /// <summary>
@@ -217,6 +217,13 @@ begin
   if HasParam( '--version' ) or HasParam( '-v' ) then
     begin
       aParams.Command := ctVersion;
+      Result          := true;
+      Exit;
+    end;
+
+  if HasParam( '--mcp' ) then
+    begin
+      aParams.Command := ctMCPServer;
       Result          := true;
       Exit;
     end;
@@ -1024,7 +1031,7 @@ end;
 
 class procedure TCommandLineParser.ShowHelpOverview;
 begin
-  WriteLn( 'StrEditor - String Replace Tool with Encoding Preservation (v1.9.3)' );
+  WriteLn( 'StrEditor - String Replace Tool with Encoding Preservation (v1.10.0)' );
   WriteLn;
   WriteLn( 'Quick Start:' );
   WriteLn( '  StrEditor.exe --file <file> --old-str <old> --new-str <new>     # Replace string' );
@@ -1368,17 +1375,20 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.9.3' );
-  WriteLn( 'Build: 2026-02-27' );
+  WriteLn( 'StrEditor v1.10.0' );
+  WriteLn( 'Build: 2026-03-02' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
-  WriteLn( 'New in v1.9.3:' );
-  WriteLn( '  - Workaround: replace-line mit mehrzeiligem Text (text-lines) funktioniert jetzt korrekt' );
-  WriteLn( '  - Text wird aufgeteilt und als mehrere Zeilen eingefuegt statt CRLF einzubetten' );
-  WriteLn( '  - Warning auf stderr: please use replace-lines with start-line/end-line/text-lines' );
-  WriteLn( '  - Alias: "line" als Alias fuer "insert-after-line" in JSON-Config (mit Warning)' );
+  WriteLn( 'New in v1.10.0:' );
+  WriteLn( '  - MCP Server: Native JSON-RPC 2.0 over stdio (--mcp flag)' );
+  WriteLn( '  - 14 MCP Tools: str_replace, edit_file, show_file, detect_encoding,' );
+  WriteLn( '    regex_replace, regex_test, move_lines, indent/unindent_lines,' );
+  WriteLn( '    convert_encoding, repair_umlauts, file_compare, undo, restart_server' );
+  WriteLn( '  - TSR mode: starts once, stays in memory, zero startup overhead per request' );
+  WriteLn( '  - No Base64 needed: strings passed directly via JSON-RPC' );
+  WriteLn( '  - Workspace-relative paths resolved automatically' );
   WriteLn;
-  WriteLn( 'Previous version v1.9.2:' );
+  WriteLn( 'Previous version v1.9.3:' );
   WriteLn( '  - Fix: ChangeReport zeigte "Lines: X -> 0 (-X)" statt korrekter Zeilenzahl' );
   WriteLn( '  - FinalLineCount wird jetzt nach der Operation aus der Datei gelesen' );
   WriteLn;
