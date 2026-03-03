@@ -9,6 +9,7 @@ interface
 Uses
   System.SysUtils
 , System.Classes
+, StrEditor.Version
 ;
 
 Type
@@ -1098,7 +1099,7 @@ end;
 
 class procedure TCommandLineParser.ShowHelpOverview;
 begin
-  WriteLn( 'StrEditor - String Replace Tool with Encoding Preservation (v1.10.2)' );
+  WriteLn( cStrEditorName + ' - String Replace Tool with Encoding Preservation (v' + cStrEditorVersion + ')' );
   WriteLn;
   WriteLn( 'Quick Start:' );
   WriteLn( '  StrEditor.exe --file <file> --old-str <old> --new-str <new>     # Replace string' );
@@ -1442,20 +1443,19 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.10.2' );
-  WriteLn( 'Build: 2026-03-03' );
+  WriteLn( cStrEditorName + ' v' + cStrEditorVersion );
+  WriteLn( 'Build: ' + cStrEditorBuild );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
-  WriteLn( 'New in v1.10.2:' );
+  WriteLn( 'New in v' + cStrEditorVersion + ':' );
+  WriteLn( '  - MCP transport compatibility: supports Content-Length framing and JSON-line mode' );
+  WriteLn( '  - Auto-detects request framing and mirrors response format accordingly' );
+  WriteLn;
+  WriteLn( 'Previous version v1.10.2:' );
   WriteLn( '  - Signal-Restart: --signal-restart sends Named Event to all running MCP instances' );
   WriteLn( '  - Graceful shutdown via watchdog thread (no kill, no mid-operation abort)' );
   WriteLn( '  - Fix: edit_file with missing text-lines no longer throws EJSONException' );
   WriteLn( '  - Fix: edit_file validates all required parameters (no silent defaults to 0)' );
-  WriteLn;
-  WriteLn( 'Previous version v1.10.1:' );
-  WriteLn( '  - CLI warning for AI agents when using StrEditor.exe directly' );
-  WriteLn( '  - SessionLog with CLI/MCP mode distinction' );
-  WriteLn( '  - MCP Server logs tool calls and exceptions' );
   WriteLn;
   WriteLn( 'Previous version v1.10.0:' );
   WriteLn( '  - MCP Server: Native JSON-RPC 2.0 over stdio (--mcp flag)' );

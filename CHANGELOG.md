@@ -4,6 +4,30 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.10.4] - 2026-03-03
+
+### Fixed
+- **OpenAI Codex MCP compatibility**: Codex sends MCP startup messages differently than Claude/Augment
+  - `ReadRequest` now accepts both single JSON-RPC objects and JSON-RPC batch arrays
+  - queued batch elements are processed one-by-one in the main loop
+  - prevents `Ungültige Typumwandlung` / transport-close on hosts that send batched startup messages
+  - accepts both `initialized` and `notifications/initialized`
+- **Version consistency**:
+  - `initialize.result.serverInfo.version` now uses shared `cStrEditorVersion`
+
+---
+
+## [1.10.3] - 2026-03-03
+
+### Fixed
+- **MCP transport compatibility**: Server now supports both stdio transport framings
+  - Accepts `Content-Length` framed JSON-RPC messages (MCP stdio default)
+  - Keeps backward compatibility with legacy JSON-line mode
+  - Response format mirrors the detected request format
+  - Fixes client startup failures where `tools/list` previously failed with closed transport
+
+---
+
 ## [1.10.2] - 2026-03-03
 
 ### Added
@@ -743,4 +767,3 @@ StrEditor.exe --docs --list
 - **GitHub Repository**: https://github.com/delphiprofi/AUGMENT-Windows-1252-Editor
 - **Documentation**: [DOC/INTEGRATION.md](DOC/INTEGRATION.md)
 - **Augment Rules**: [DOC/AUGMENT-RULES.md](DOC/AUGMENT-RULES.md)
-

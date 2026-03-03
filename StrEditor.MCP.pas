@@ -18,6 +18,8 @@ Uses
 , StrEditor.FileCompare
 , StrEditor.Repair
 , StrEditor.SessionLog
+, StrEditor.Version
+, Contnrs
 ;
 
 Type
@@ -25,6 +27,8 @@ Type
     strict private
       fRunning       : Boolean;
       fWorkspaceRoot : string;
+      fUseContentLengthTransport : Boolean;
+      fPendingRequests : TObjectList;
 
       function ResolvePath( const aPath : string ) : string;
       function HandleInitialize( const aId : TJSONValue; const aParams : TJSONObject ) : TJSONObject;
@@ -104,6 +108,8 @@ Var
   lThread       : THandle;
 begin
   fRunning := true;
+  fUseContentLengthTransport := false;
+  fPendingRequests := TObjectList.Create( true );
 
   // Named Event erstellen (ManualReset=TRUE, InitialState=FALSE)
   // Alle MCP-Instanzen teilen sich dieses Event über den Namen
@@ -136,7 +142,7 @@ begin
             lResponse := HandleInitialize( lId, lRequest.GetValue<TJSONObject>( 'params' ) )
 
           else
-          if lMethod = 'initialized' then
+          if ( lMethod = 'initialized' ) or ( lMethod = 'notifications/initialized' ) then
             Continue
 
           else
@@ -168,6 +174,8 @@ begin
       end;
 
   finally
+    fPendingRequests.Free;
+
     if lThread <> 0 then
       CloseHandle( lThread );
 
@@ -177,37 +185,166 @@ begin
 end;
 
 function TMCPServer.ReadRequest : TJSONObject;
+  function ParseRequestEnvelope( const aJson : string ) : TJSONObject;
+  Var
+    lValue : TJSONValue;
+    lArray : TJSONArray;
+    i      : Integer;
+  begin
+    Result := NIL;
+
+    lValue := TJSONObject.ParseJSONValue( aJson );
+    if lValue = NIL then
+      Exit;
+
+    try
+      if lValue is TJSONObject then
+        begin
+          // Übergabe der Ownership an den Caller
+          Result := lValue as TJSONObject;
+          lValue := NIL;
+          Exit;
+        end;
+
+      if lValue is TJSONArray then
+        begin
+          lArray := lValue as TJSONArray;
+
+          for i := 0 to lArray.Count - 1 do
+            if lArray.Items[ i ] is TJSONObject then
+              fPendingRequests.Add( ( lArray.Items[ i ] as TJSONObject ).Clone as TJSONObject );
+
+          if fPendingRequests.Count > 0 then
+            begin
+              Result := TJSONObject( fPendingRequests[ 0 ] );
+              fPendingRequests.Extract( Result );
+            end;
+
+          Exit;
+        end;
+    finally
+      lValue.Free;
+    end;
+  end;
 Var
-  lLine : string;
+  lLine          : string;
+  lHeaderLine    : string;
+  lContentLength : Integer;
+  lColonPos      : Integer;
+  lBody          : string;
+  i              : Integer;
 begin
   Result := NIL;
 
-  // MCP verwendet standardmäßig JSON-RPC über stdio
-  // Jede Nachricht ist eine einzelne JSON-Zeile
+  // Unterstützt zwei Transport-Formate:
+  // 1) Content-Length framing (MCP stdio default)
+  // 2) Legacy JSON-pro-Line (NDJSON)
   try
-    if EOF( Input ) then
-      Exit;
+    if fPendingRequests.Count > 0 then
+      begin
+        Result := TJSONObject( fPendingRequests[ 0 ] );
+        fPendingRequests.Extract( Result );
+        Exit;
+      end;
 
-    ReadLn( lLine );
+    while true do
+      begin
+        if EOF( Input ) then
+          Exit;
 
-    lLine := Trim( lLine );
+        ReadLn( lLine );
+        lLine := Trim( lLine );
 
-    if lLine = '' then
-      Exit;
+        // Leere Zeilen ignorieren
+        if lLine = '' then
+          Continue;
 
-    Result := TJSONObject.ParseJSONValue( lLine ) as TJSONObject;
+        // Content-Length framing erkannt
+        if SameText( Copy( lLine, 1, 15 ), 'Content-Length:' ) then
+          begin
+            fUseContentLengthTransport := true;
+            lContentLength := 0;
+            lColonPos := Pos( ':', lLine );
+
+            if lColonPos > 0 then
+              lContentLength := StrToIntDef( Trim( Copy( lLine, lColonPos + 1, MaxInt ) ), 0 );
+
+            if lContentLength <= 0 then
+              Exit;
+
+            // Restliche Header bis zur Leerzeile lesen
+            while not EOF( Input ) do
+              begin
+                ReadLn( lHeaderLine );
+
+                if Trim( lHeaderLine ) = '' then
+                  Break;
+              end;
+
+            SetLength( lBody, lContentLength );
+            for i := 1 to lContentLength do
+              begin
+                if EOF( Input ) then
+                  Break;
+
+                Read( Input, lBody[ i ] );
+              end;
+
+            lBody := Trim( lBody );
+
+            if lBody = '' then
+              Exit;
+
+            Result := ParseRequestEnvelope( lBody );
+            Exit;
+          end;
+
+        // Fallback: Legacy JSON-pro-Line
+        fUseContentLengthTransport := false;
+        Result := ParseRequestEnvelope( lLine );
+        Exit;
+      end;
   except
     on E : Exception do
       begin
-        WriteLn( ErrOutput, 'ERROR reading request: ' + E.Message );
+        TSessionLog.Instance.LogError( 'MCP ReadRequest failed: ' + E.Message );
         Result := NIL;
       end;
   end;
 end;
 
 procedure TMCPServer.SendResponse( const aResponse : TJSONObject );
+Var
+  lJson       : string;
+  lHeader     : string;
+  lHeaderData : TBytes;
+  lBodyData   : TBytes;
+  lStdOut     : THandle;
+  lWritten    : DWORD;
 begin
-  WriteLn( aResponse.ToJSON );
+  lJson := aResponse.ToJSON;
+
+  if fUseContentLengthTransport then
+    begin
+      // Framed MCP output must be written as raw bytes (no text-mode conversion).
+      lBodyData := TEncoding.UTF8.GetBytes( lJson );
+      lHeader := 'Content-Length: ' + IntToStr( Length( lBodyData ) ) + #13#10#13#10;
+      lHeaderData := TEncoding.ASCII.GetBytes( lHeader );
+
+      lStdOut := GetStdHandle( STD_OUTPUT_HANDLE );
+
+      if ( lStdOut <> 0 ) and ( lStdOut <> INVALID_HANDLE_VALUE ) then
+        begin
+          if Length( lHeaderData ) > 0 then
+            WriteFile( lStdOut, lHeaderData[ 0 ], Length( lHeaderData ), lWritten, NIL );
+
+          if Length( lBodyData ) > 0 then
+            WriteFile( lStdOut, lBodyData[ 0 ], Length( lBodyData ), lWritten, NIL );
+        end;
+    end
+  else
+    WriteLn( lJson );
+
   Flush( Output );
 end;
 
@@ -348,7 +485,7 @@ begin
 
   lServerInfo := TJSONObject.Create;
   lServerInfo.AddPair( 'name', 'StrEditor' );
-  lServerInfo.AddPair( 'version', '1.10.2' );
+  lServerInfo.AddPair( 'version', cStrEditorVersion );
 
   lResult := TJSONObject.Create;
   lResult.AddPair( 'protocolVersion', '2024-11-05' );
