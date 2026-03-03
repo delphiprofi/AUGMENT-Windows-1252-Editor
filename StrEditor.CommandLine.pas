@@ -17,7 +17,7 @@ Type
   ///   Command-Typ
   /// </summary>
   {$ENDREGION}
-  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine, ctReplaceLines, ctDocs, ctRepairUmlauts, ctMoveLines, ctIndent, ctUnindent, ctFileCompare, ctMCPServer );
+  TCommandType = ( ctUnknown, ctStrReplace, ctInsert, ctInsertBefore, ctRegexReplace, ctRegexTest, ctUndo, ctHelp, ctVersion, ctDetectEncoding, ctShow, ctConvertEncoding, ctReinterpretEncoding, ctDeleteLine, ctDeleteLines, ctReplaceLine, ctReplaceLines, ctDocs, ctRepairUmlauts, ctMoveLines, ctIndent, ctUnindent, ctFileCompare, ctMCPServer, ctCommentLines, ctUncommentLines, ctSignalRestart );
 
   {$REGION 'Documentation'}
   /// <summary>
@@ -224,6 +224,13 @@ begin
   if HasParam( '--mcp' ) then
     begin
       aParams.Command := ctMCPServer;
+      Result          := true;
+      Exit;
+    end;
+
+  if HasParam( '--signal-restart' ) then
+    begin
+      aParams.Command := ctSignalRestart;
       Result          := true;
       Exit;
     end;
@@ -547,6 +554,66 @@ begin
           ShowError( 'Invalid --spaces value: must be > 0' );
           Exit;
         end;
+
+      Result := true;
+      Exit;
+    end;
+
+  if HasParam( '--comment-lines' ) then
+    begin
+      aParams.Command   := ctCommentLines;
+      aParams.FilePath  := GetParamValue( '--file' );
+      aParams.StartLine := StrToIntDef( GetParamValue( '--start-line' ), 0 );
+      aParams.EndLine   := StrToIntDef( GetParamValue( '--end-line' ), 0 );
+      aParams.Backup    := HasParam( '--backup' );
+      aParams.DryRun    := HasParam( '--dry-run' );
+      aParams.Diff      := HasParam( '--diff' );
+      aParams.Verbose   := HasParam( '--verbose' );
+
+      if aParams.FilePath = '' then
+        begin
+          ShowError( 'Missing required parameter: --file' );
+          Exit;
+        end;
+
+      if aParams.StartLine <= 0 then
+        begin
+          ShowError( 'Missing or invalid parameter: --start-line' );
+          Exit;
+        end;
+
+      if aParams.EndLine <= 0 then
+        aParams.EndLine := aParams.StartLine;
+
+      Result := true;
+      Exit;
+    end;
+
+  if HasParam( '--uncomment-lines' ) then
+    begin
+      aParams.Command   := ctUncommentLines;
+      aParams.FilePath  := GetParamValue( '--file' );
+      aParams.StartLine := StrToIntDef( GetParamValue( '--start-line' ), 0 );
+      aParams.EndLine   := StrToIntDef( GetParamValue( '--end-line' ), 0 );
+      aParams.Backup    := HasParam( '--backup' );
+      aParams.DryRun    := HasParam( '--dry-run' );
+      aParams.Diff      := HasParam( '--diff' );
+      aParams.Verbose   := HasParam( '--verbose' );
+
+      if aParams.FilePath = '' then
+        begin
+          ShowError( 'Missing required parameter: --file' );
+          Exit;
+        end;
+
+      if aParams.StartLine <= 0 then
+        begin
+          ShowError( 'Missing or invalid parameter: --start-line' );
+          Exit;
+        end;
+
+      if aParams.EndLine <= 0 then
+        aParams.EndLine := aParams.StartLine;
 
       Result := true;
       Exit;
@@ -1031,7 +1098,7 @@ end;
 
 class procedure TCommandLineParser.ShowHelpOverview;
 begin
-  WriteLn( 'StrEditor - String Replace Tool with Encoding Preservation (v1.10.0)' );
+  WriteLn( 'StrEditor - String Replace Tool with Encoding Preservation (v1.10.2)' );
   WriteLn;
   WriteLn( 'Quick Start:' );
   WriteLn( '  StrEditor.exe --file <file> --old-str <old> --new-str <new>     # Replace string' );
@@ -1375,11 +1442,22 @@ end;
 
 class procedure TCommandLineParser.ShowVersion;
 begin
-  WriteLn( 'StrEditor v1.10.0' );
-  WriteLn( 'Build: 2026-03-02' );
+  WriteLn( 'StrEditor v1.10.2' );
+  WriteLn( 'Build: 2026-03-03' );
   WriteLn( 'Delphi String Replace Tool with Encoding Preservation' );
   WriteLn;
-  WriteLn( 'New in v1.10.0:' );
+  WriteLn( 'New in v1.10.2:' );
+  WriteLn( '  - Signal-Restart: --signal-restart sends Named Event to all running MCP instances' );
+  WriteLn( '  - Graceful shutdown via watchdog thread (no kill, no mid-operation abort)' );
+  WriteLn( '  - Fix: edit_file with missing text-lines no longer throws EJSONException' );
+  WriteLn( '  - Fix: edit_file validates all required parameters (no silent defaults to 0)' );
+  WriteLn;
+  WriteLn( 'Previous version v1.10.1:' );
+  WriteLn( '  - CLI warning for AI agents when using StrEditor.exe directly' );
+  WriteLn( '  - SessionLog with CLI/MCP mode distinction' );
+  WriteLn( '  - MCP Server logs tool calls and exceptions' );
+  WriteLn;
+  WriteLn( 'Previous version v1.10.0:' );
   WriteLn( '  - MCP Server: Native JSON-RPC 2.0 over stdio (--mcp flag)' );
   WriteLn( '  - 14 MCP Tools: str_replace, edit_file, show_file, detect_encoding,' );
   WriteLn( '    regex_replace, regex_test, move_lines, indent/unindent_lines,' );

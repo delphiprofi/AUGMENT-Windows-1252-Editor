@@ -1,8 +1,8 @@
 # AUGMENT-Windows-1252-Editor
 This is a replacement for the built-in str-replace-editor, if you are dealing with legacy code that is not UTF-8 and cannot be migrated!
 
-**Version:** 1.9.3
-**Last Updated:** 2026-02-27
+**Version:** 1.10.2
+**Last Updated:** 2026-03-03
 **License:** MIT License - see [LICENSE.md](LICENSE.md)
 
 ---
@@ -36,6 +36,10 @@ StrEditor is a command-line tool for replacing and inserting text in Delphi sour
 
 ### ✨ Main Features
 
+- ✅ **Signal-Restart (`--signal-restart`)**: Gracefully shut down all running MCP server instances via Named Event **[NEW in v1.10.2]**
+- ✅ **Comment/Uncomment Lines**: Add/remove `//` comments by line range (`--comment-lines`, `--uncomment-lines`) **[NEW in v1.10.2]**
+- ✅ **MCP Server (`--mcp`)**: Native JSON-RPC 2.0 server over stdio — 350-4000x faster than CLI **[NEW in v1.10.0]**
+- ✅ **Parameter Validation**: edit_file validates all required parameters — no more silent defaults **[FIXED in v1.10.2]**
 - ✅ **WriteFile Retry**: Reliable file writes with 3 retries and 100ms delay on transient locks **[FIXED in v1.9.3]**
 - ✅ **Tolerant replace-line**: Auto-splits multi-line text instead of corrupting the file (with stderr warning) **[NEW in v1.9.3]**
 - ✅ **JSON Alias `"line"`**: Accepted as alias for `"insert-after-line"` (with stderr warning) **[NEW in v1.9.3]**

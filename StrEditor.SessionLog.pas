@@ -18,6 +18,7 @@ Uses
 ;
 
 Type
+  TLogMode = ( lmCLI, lmMCP );
   TLogType = ( ltView, ltConfig, ltError, ltSuccess, ltWarning );
 
   {$REGION 'Documentation'}
@@ -34,6 +35,7 @@ Type
       fEnabled  : Boolean;
       fLogPath  : string;
       fLogFile  : TStreamWriter;
+      fMode     : TLogMode;
 
       procedure OpenLogFile;
       procedure CloseLogFile;
@@ -54,8 +56,9 @@ Type
       procedure LogSuccess( const aMessage : string );
       procedure LogWarning( const aMessage : string );
 
-      property Enabled : Boolean read fEnabled write fEnabled;
-      property LogPath : string  read fLogPath write fLogPath;
+      property Enabled : Boolean  read fEnabled write fEnabled;
+      property LogPath : string   read fLogPath write fLogPath;
+      property Mode    : TLogMode read fMode    write fMode;
   end;
 
 implementation
@@ -106,6 +109,7 @@ begin
   inherited Create;
 
   fLogFile := NIL;
+  fMode    := lmCLI;  // Default: CLI-Modus
 
   // Lade Settings
   lSettings := TStrEditorSettings.Instance;
@@ -186,9 +190,12 @@ begin
     fLock.Enter;
 
   try
-    lLine := FormatDateTime( 'yyyy-mm-dd hh:nn:ss', Now ) + '|' +
-             GetLogTypeName( aType ) + '|' +
-             EncodeBase64( aData );
+    case fMode of
+      lmCLI : lLine := FormatDateTime( 'yyyy-mm-dd hh:nn:ss', Now ) + '|CLI|';
+      lmMCP : lLine := FormatDateTime( 'yyyy-mm-dd hh:nn:ss', Now ) + '|MCP|';
+    end;
+
+    lLine := lLine + GetLogTypeName( aType ) + '|' + EncodeBase64( aData );
 
     fLogFile.WriteLine( lLine );
     fLogFile.Flush;

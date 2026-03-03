@@ -17,6 +17,7 @@ Uses
 , StrEditor.Undo
 , StrEditor.FileCompare
 , StrEditor.Repair
+, StrEditor.SessionLog
 ;
 
 Type
@@ -45,6 +46,8 @@ Type
       function HandleRepairUmlauts( const aArgs : TJSONObject ) : TJSONObject;
       function HandleFileCompare( const aArgs : TJSONObject ) : TJSONObject;
       function HandleUndo( const aArgs : TJSONObject ) : TJSONObject;
+      function HandleCommentLines( const aArgs : TJSONObject ) : TJSONObject;
+      function HandleUncommentLines( const aArgs : TJSONObject ) : TJSONObject;
       function HandleRestartServer( const aArgs : TJSONObject ) : TJSONObject;
 
       function MakeResult( const aId : TJSONValue; const aResult : TJSONValue ) : TJSONObject;
@@ -65,70 +68,112 @@ Uses
   System.Math
 , System.Generics.Collections
 , System.NetEncoding
+, Winapi.Windows
 ;
+
+Const
+  cRestartEventName = 'Local\StrEditorRestart';
+
+// Watchdog-Thread: wartet auf das Named Event und beendet den Prozess sauber
+function RestartWatchdogThread( aParam : Pointer ) : DWORD; stdcall;
+Var
+  lEvent : THandle;
+begin
+  Result := 0;
+
+  lEvent := THandle( aParam );
+
+  // Blockiert bis das Event gesetzt wird (oder der Prozess endet)
+  if WaitForSingleObject( lEvent, INFINITE ) = WAIT_OBJECT_0 then
+    begin
+      TSessionLog.Instance.LogSuccess( 'MCP server shutdown: restart signal received' );
+      // Prozess sauber beenden — ReadLn blockiert, daher ExitProcess
+      ExitProcess( 0 );
+    end;
+end;
 
 procedure TMCPServer.Run;
 Var
-  lRequest  : TJSONObject;
-  lMethod   : string;
-  lId       : TJSONValue;
-  lParams   : TJSONObject;
-  lResponse : TJSONObject;
+  lRequest      : TJSONObject;
+  lMethod       : string;
+  lId           : TJSONValue;
+  lParams       : TJSONObject;
+  lResponse     : TJSONObject;
+  lRestartEvent : THandle;
+  lThreadId     : DWORD;
+  lThread       : THandle;
 begin
   fRunning := true;
 
-  // MCP Server läuft als stdio-Loop
+  // Named Event erstellen (ManualReset=TRUE, InitialState=FALSE)
+  // Alle MCP-Instanzen teilen sich dieses Event über den Namen
+  lRestartEvent := CreateEvent( NIL, TRUE, FALSE, cRestartEventName );
 
-  while fRunning do
-    begin
-      lRequest := ReadRequest;
+  // Watchdog-Thread starten der auf das Event wartet
+  lThread := 0;
 
-      if lRequest = NIL then
-        begin
-          fRunning := false;
-          Break;
+  if lRestartEvent <> 0 then
+    lThread := CreateThread( NIL, 0, @RestartWatchdogThread, Pointer( lRestartEvent ), 0, lThreadId );
+
+  try
+    // MCP Server läuft als stdio-Loop
+
+    while fRunning do
+      begin
+        lRequest := ReadRequest;
+
+        if lRequest = NIL then
+          begin
+            fRunning := false;
+            Break;
+          end;
+
+        try
+          lMethod := lRequest.GetValue<string>( 'method', '' );
+          lId     := lRequest.GetValue( 'id' );
+
+          if lMethod = 'initialize' then
+            lResponse := HandleInitialize( lId, lRequest.GetValue<TJSONObject>( 'params' ) )
+
+          else
+          if lMethod = 'initialized' then
+            Continue
+
+          else
+          if lMethod = 'tools/list' then
+            lResponse := HandleToolsList( lId )
+
+          else
+          if lMethod = 'tools/call' then
+            begin
+              lParams   := lRequest.GetValue<TJSONObject>( 'params' );
+              lResponse := HandleToolsCall( lId, lParams );
+            end
+
+          else
+          if lMethod = 'shutdown' then
+            begin
+              fRunning  := false;
+              lResponse := MakeResult( lId, TJSONObject.Create );
+            end
+
+          else
+            lResponse := MakeError( lId, -32601, 'Method not found: ' + lMethod );
+
+          SendResponse( lResponse );
+          lResponse.Free;
+        finally
+          lRequest.Free;
         end;
-
-      try
-        lMethod := lRequest.GetValue<string>( 'method', '' );
-        lId     := lRequest.GetValue( 'id' );
-
-        if lMethod = 'initialize' then
-          lResponse := HandleInitialize( lId, lRequest.GetValue<TJSONObject>( 'params' ) )
-
-        else
-        if lMethod = 'initialized' then
-          Continue
-
-        else
-        if lMethod = 'tools/list' then
-          lResponse := HandleToolsList( lId )
-
-        else
-        if lMethod = 'tools/call' then
-          begin
-            lParams   := lRequest.GetValue<TJSONObject>( 'params' );
-            lResponse := HandleToolsCall( lId, lParams );
-          end
-
-        else
-        if lMethod = 'shutdown' then
-          begin
-            fRunning  := false;
-            lResponse := MakeResult( lId, TJSONObject.Create );
-          end
-
-        else
-          lResponse := MakeError( lId, -32601, 'Method not found: ' + lMethod );
-
-        SendResponse( lResponse );
-        lResponse.Free;
-      finally
-        lRequest.Free;
       end;
-    end;
 
+  finally
+    if lThread <> 0 then
+      CloseHandle( lThread );
 
+    if lRestartEvent <> 0 then
+      CloseHandle( lRestartEvent );
+  end;
 end;
 
 function TMCPServer.ReadRequest : TJSONObject;
@@ -302,8 +347,8 @@ begin
   lCapabilities.AddPair( 'tools', TJSONObject.Create );
 
   lServerInfo := TJSONObject.Create;
-  lServerInfo.AddPair( 'name', 'streditor' );
-  lServerInfo.AddPair( 'version', '1.10.0' );
+  lServerInfo.AddPair( 'name', 'StrEditor' );
+  lServerInfo.AddPair( 'version', '1.10.2' );
 
   lResult := TJSONObject.Create;
   lResult.AddPair( 'protocolVersion', '2024-11-05' );
@@ -350,6 +395,8 @@ Var
 begin
   lToolName := aParams.GetValue<string>( 'name', '' );
   lArgs     := aParams.GetValue<TJSONObject>( 'arguments' );
+
+  TSessionLog.Instance.LogSuccess( 'MCP tool call: ' + lToolName );
 
   if lArgs = NIL then
     lArgs := TJSONObject.Create;
@@ -415,6 +462,14 @@ begin
       lToolResult := HandleUndo( lArgs )
 
     else
+    if lToolName = 'comment_lines' then
+      lToolResult := HandleCommentLines( lArgs )
+
+    else
+    if lToolName = 'uncomment_lines' then
+      lToolResult := HandleUncommentLines( lArgs )
+
+    else
     if lToolName = 'restart_server' then
       lToolResult := HandleRestartServer( lArgs )
 
@@ -424,7 +479,10 @@ begin
     Result := MakeResult( aId, lToolResult );
   except
     on E : Exception do
-      Result := MakeResult( aId, MakeToolResult( 'Exception: ' + E.ClassName + ': ' + E.Message, true ) );
+      begin
+        TSessionLog.Instance.LogError( 'MCP tool exception [' + lToolName + ']: ' + E.ClassName + ': ' + E.Message );
+        Result := MakeResult( aId, MakeToolResult( 'Exception: ' + E.ClassName + ': ' + E.Message, true ) );
+      end;
   end;
 end;
 
@@ -661,7 +719,35 @@ begin
   lTool.AddPair( 'inputSchema', MakeInputSchema( lProps, ReqArray( [ 'file' ] ) ) );
   Result.AddElement( lTool );
 
-  // Tool 14: restart_server
+  // Tool 14: comment_lines
+  lProps := TJSONObject.Create;
+  lProps.AddPair( 'file', StringProp( 'Path to the file' ) );
+  lProps.AddPair( 'start_line', IntProp( 'First line to comment (1-based)' ) );
+  lProps.AddPair( 'end_line', IntProp( 'Last line to comment (1-based)' ) );
+  lProps.AddPair( 'dry_run', BoolProp( 'Preview only, do not modify file' ) );
+  lProps.AddPair( 'backup', BoolProp( 'Create .bak backup before modifying' ) );
+
+  lTool := TJSONObject.Create;
+  lTool.AddPair( 'name', 'comment_lines' );
+  lTool.AddPair( 'description', 'Comment out lines by prepending // at the beginning of each line. Empty lines and already commented lines also get //. Preserves encoding.' );
+  lTool.AddPair( 'inputSchema', MakeInputSchema( lProps, ReqArray( [ 'file', 'start_line', 'end_line' ] ) ) );
+  Result.AddElement( lTool );
+
+  // Tool 15: uncomment_lines
+  lProps := TJSONObject.Create;
+  lProps.AddPair( 'file', StringProp( 'Path to the file' ) );
+  lProps.AddPair( 'start_line', IntProp( 'First line to uncomment (1-based)' ) );
+  lProps.AddPair( 'end_line', IntProp( 'Last line to uncomment (1-based)' ) );
+  lProps.AddPair( 'dry_run', BoolProp( 'Preview only, do not modify file' ) );
+  lProps.AddPair( 'backup', BoolProp( 'Create .bak backup before modifying' ) );
+
+  lTool := TJSONObject.Create;
+  lTool.AddPair( 'name', 'uncomment_lines' );
+  lTool.AddPair( 'description', 'Uncomment lines by removing leading // from each line. Tolerant: removes "// " (with space) or "//" (without space). Preserves encoding.' );
+  lTool.AddPair( 'inputSchema', MakeInputSchema( lProps, ReqArray( [ 'file', 'start_line', 'end_line' ] ) ) );
+  Result.AddElement( lTool );
+
+  // Tool 16: restart_server
   lProps := TJSONObject.Create;
 
   lTool := TJSONObject.Create;
@@ -739,6 +825,9 @@ begin
       // Command
       lCommand := lOpObj.GetValue<string>( 'command', '' );
 
+      if lCommand = '' then
+        Exit( MakeToolResult( 'ERROR: Operation ' + IntToStr( i + 1 ) + ': Missing required parameter "command"', true ) );
+
       // File - aus Operation oder Default
       lParams := Default( TCommandLineParams );
       lParams.FilePath := lOpObj.GetValue<string>( 'file', lDefaultFile );
@@ -748,11 +837,14 @@ begin
       if ( lFilePath = '' ) and ( lParams.FilePath <> '' ) then
         lFilePath := lParams.FilePath;
 
-      // Command-Mapping
+      // Command-Mapping with required parameter validation
       if ( lCommand = 'delete-line' ) then
         begin
           lParams.Command    := ctDeleteLine;
           lParams.LineNumber := lOpObj.GetValue<Integer>( 'line', 0 );
+
+          if lParams.LineNumber <= 0 then
+            Exit( MakeToolResult( 'ERROR: Operation ' + IntToStr( i + 1 ) + ' (delete-line): Missing or invalid required parameter "line" (must be >= 1)', true ) );
         end
 
       else
@@ -761,6 +853,12 @@ begin
           lParams.Command   := ctDeleteLines;
           lParams.StartLine := lOpObj.GetValue<Integer>( 'start-line', 0 );
           lParams.EndLine   := lOpObj.GetValue<Integer>( 'end-line', 0 );
+
+          if lParams.StartLine <= 0 then
+            Exit( MakeToolResult( 'ERROR: Operation ' + IntToStr( i + 1 ) + ' (delete-lines): Missing or invalid required parameter "start-line" (must be >= 1)', true ) );
+
+          if lParams.EndLine <= 0 then
+            Exit( MakeToolResult( 'ERROR: Operation ' + IntToStr( i + 1 ) + ' (delete-lines): Missing or invalid required parameter "end-line" (must be >= 1)', true ) );
         end
 
       else
@@ -769,6 +867,9 @@ begin
           lParams.Command    := ctReplaceLine;
           lParams.LineNumber := lOpObj.GetValue<Integer>( 'line', 0 );
           lParams.Text       := lOpObj.GetValue<string>( 'text', '' );
+
+          if lParams.LineNumber <= 0 then
+            Exit( MakeToolResult( 'ERROR: Operation ' + IntToStr( i + 1 ) + ' (replace-line): Missing or invalid required parameter "line" (must be >= 1)', true ) );
         end
 
       else
@@ -777,6 +878,12 @@ begin
           lParams.Command   := ctReplaceLines;
           lParams.StartLine := lOpObj.GetValue<Integer>( 'start-line', 0 );
           lParams.EndLine   := lOpObj.GetValue<Integer>( 'end-line', 0 );
+
+          if lParams.StartLine <= 0 then
+            Exit( MakeToolResult( 'ERROR: Operation ' + IntToStr( i + 1 ) + ' (replace-lines): Missing or invalid required parameter "start-line" (must be >= 1)', true ) );
+
+          if lParams.EndLine <= 0 then
+            Exit( MakeToolResult( 'ERROR: Operation ' + IntToStr( i + 1 ) + ' (replace-lines): Missing or invalid required parameter "end-line" (must be >= 1)', true ) );
         end
 
       else
@@ -784,6 +891,9 @@ begin
         begin
           lParams.Command        := ctInsert;
           lParams.InsertAfterLine := lOpObj.GetValue<Integer>( 'insert-after-line', 0 );
+
+          if lParams.InsertAfterLine <= 0 then
+            Exit( MakeToolResult( 'ERROR: Operation ' + IntToStr( i + 1 ) + ' (insert-after): Missing or invalid required parameter "insert-after-line" (must be >= 1)', true ) );
         end
 
       else
@@ -791,6 +901,9 @@ begin
         begin
           lParams.Command         := ctInsertBefore;
           lParams.InsertBeforeLine := lOpObj.GetValue<Integer>( 'insert-before-line', 0 );
+
+          if lParams.InsertBeforeLine <= 0 then
+            Exit( MakeToolResult( 'ERROR: Operation ' + IntToStr( i + 1 ) + ' (insert-before): Missing or invalid required parameter "insert-before-line" (must be >= 1)', true ) );
         end
 
       else
@@ -799,13 +912,18 @@ begin
           lParams.Command := ctStrReplace;
           lParams.OldStr  := lOpObj.GetValue<string>( 'old-str', '' );
           lParams.NewStr  := lOpObj.GetValue<string>( 'new-str', '' );
+
+          if lParams.OldStr = '' then
+            Exit( MakeToolResult( 'ERROR: Operation ' + IntToStr( i + 1 ) + ' (str-replace): Missing required parameter "old-str"', true ) );
         end
 
       else
         Exit( MakeToolResult( 'ERROR: Unknown command "' + lCommand + '" in operation ' + IntToStr( i + 1 ), true ) );
 
-      // text-lines Array → Text mit CRLF
-      lTextLines := lOpObj.GetValue<TJSONArray>( 'text-lines' );
+      // text-lines Array → Text mit CRLF (FindValue statt GetValue um EJSONException zu vermeiden)
+      if ( lOpObj.FindValue( 'text-lines' ) <> NIL ) and ( lOpObj.FindValue( 'text-lines' ) is TJSONArray )
+        then lTextLines := TJSONArray( lOpObj.FindValue( 'text-lines' ) )
+        else lTextLines := NIL;
 
       if lTextLines <> NIL then
         begin
@@ -1239,6 +1357,62 @@ begin
   if TUndoHelper.UndoChanges( lFilePath )
     then Result := MakeToolResult( 'OK: Restored ' + lFilePath + ' from backup' )
     else Result := MakeToolResult( 'ERROR: Failed to restore backup for ' + lFilePath, true );
+end;
+
+function TMCPServer.HandleCommentLines( const aArgs : TJSONObject ) : TJSONObject;
+Var
+  lFilePath : string;
+  lStart    : Integer;
+  lEnd      : Integer;
+  lDryRun   : Boolean;
+  lBackup   : Boolean;
+  lResult   : TOperationResult;
+begin
+  lFilePath := aArgs.GetValue<string>( 'file', '' );
+  lStart    := aArgs.GetValue<Integer>( 'start_line', 0 );
+  lEnd      := aArgs.GetValue<Integer>( 'end_line', 0 );
+  lDryRun   := aArgs.GetValue<Boolean>( 'dry_run', false );
+  lBackup   := aArgs.GetValue<Boolean>( 'backup', false );
+
+  if lFilePath = '' then
+    Exit( MakeToolResult( 'ERROR: file parameter required', true ) );
+
+  if not FileExists( lFilePath ) then
+    Exit( MakeToolResult( 'ERROR: File not found: ' + lFilePath, true ) );
+
+  lResult := TStringOperations.CommentLines( lFilePath, lStart, lEnd, lDryRun, lBackup );
+
+  if lResult.Success
+    then Result := MakeToolResult( 'OK: Commented lines ' + IntToStr( lStart ) + '-' + IntToStr( lEnd ) + ' (' + IntToStr( lResult.LinesChanged ) + ' lines) in ' + lFilePath )
+    else Result := MakeToolResult( 'ERROR: ' + lResult.ErrorMessage, true );
+end;
+
+function TMCPServer.HandleUncommentLines( const aArgs : TJSONObject ) : TJSONObject;
+Var
+  lFilePath : string;
+  lStart    : Integer;
+  lEnd      : Integer;
+  lDryRun   : Boolean;
+  lBackup   : Boolean;
+  lResult   : TOperationResult;
+begin
+  lFilePath := aArgs.GetValue<string>( 'file', '' );
+  lStart    := aArgs.GetValue<Integer>( 'start_line', 0 );
+  lEnd      := aArgs.GetValue<Integer>( 'end_line', 0 );
+  lDryRun   := aArgs.GetValue<Boolean>( 'dry_run', false );
+  lBackup   := aArgs.GetValue<Boolean>( 'backup', false );
+
+  if lFilePath = '' then
+    Exit( MakeToolResult( 'ERROR: file parameter required', true ) );
+
+  if not FileExists( lFilePath ) then
+    Exit( MakeToolResult( 'ERROR: File not found: ' + lFilePath, true ) );
+
+  lResult := TStringOperations.UncommentLines( lFilePath, lStart, lEnd, lDryRun, lBackup );
+
+  if lResult.Success
+    then Result := MakeToolResult( 'OK: Uncommented lines ' + IntToStr( lStart ) + '-' + IntToStr( lEnd ) + ' (' + IntToStr( lResult.LinesChanged ) + ' lines) in ' + lFilePath )
+    else Result := MakeToolResult( 'ERROR: ' + lResult.ErrorMessage, true );
 end;
 
 function TMCPServer.HandleRestartServer( const aArgs : TJSONObject ) : TJSONObject;

@@ -4,6 +4,42 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.10.2] - 2026-03-03
+
+### Added
+- **Signal-Restart (`--signal-restart`)**: Sends a Windows Named Event to all running MCP server instances, causing them to shut down gracefully
+  - Uses `Local\StrEditorRestart` Named Event (ManualReset)
+  - Watchdog thread in MCP server waits on the event and terminates the process between operations
+  - No kill, no mid-operation abort — always finishes current operation first
+  - One signal terminates all instances (multicast)
+- **Comment/Uncomment Lines**: New MCP tools `comment_lines` and `uncomment_lines`
+  - Adds `//` at column 0 (preserving indentation)
+  - Uncomment removes exactly `//` (2 chars) for perfect round-trip
+  - Empty lines get `//` when commented
+  - CLI: `--comment-lines` / `--uncomment-lines` with `--start-line` / `--end-line`
+
+### Fixed
+- **edit_file: Missing text-lines no longer crashes**: `GetValue<TJSONArray>('text-lines')` replaced with `FindValue('text-lines')` to avoid `EJSONException` when parameter is absent
+- **edit_file: Required parameter validation**: All required parameters for each command type are now validated — missing parameters return clear error messages instead of silently defaulting to 0
+  - Affected commands: `delete-line`, `delete-lines`, `replace-line`, `replace-lines`, `insert-after`, `insert-before`, `str-replace`
+  - Missing `command` parameter now returns error instead of being ignored
+  - Error messages include operation number and command name
+
+---
+
+## [1.10.1] - 2026-03-03
+
+### Added
+- **CLI Warning for AI Agents**: When `StrEditor.exe` is called directly (without `--mcp`), a prominent warning is printed to stderr telling AI agents to use the MCP server instead
+- **SessionLog CLI/MCP distinction**: Log entries now include `CLI` or `MCP` mode identifier
+  - Format: `Timestamp|CLI|Type|Base64-Data` or `Timestamp|MCP|Type|Base64-Data`
+- **MCP Server logging**: Tool calls and exceptions are now logged via `TSessionLog`
+
+### Changed
+- MCP Server name corrected from `streditor` to `StrEditor` in server info
+
+---
+
 ## [1.10.0] - 2026-03-02
 
 ### Added

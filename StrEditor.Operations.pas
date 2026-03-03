@@ -141,6 +141,24 @@ Type
       {$ENDREGION}
       class function UnindentLines( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aSpaces : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
 
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Kommentiert Zeilen aus (fügt // am Zeilenanfang hinzu)
+      ///   aStartLine/aEndLine: Zeilenbereich (1-basiert)
+      ///   Auch leere Zeilen und bereits kommentierte Zeilen erhalten //
+      /// </summary>
+      {$ENDREGION}
+      class function CommentLines( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+
+      {$REGION 'Documentation'}
+      /// <summary>
+      ///   Entfernt Kommentar von Zeilen (entfernt // am Zeilenanfang)
+      ///   Tolerant: erkennt sowohl "// Code" (entfernt "// ") als auch "//Code" (entfernt "//")
+      ///   aStartLine/aEndLine: Zeilenbereich (1-basiert)
+      /// </summary>
+      {$ENDREGION}
+      class function UncommentLines( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+
     strict private
       class function FindAndReplace( const aLines : TStringList; const aOldStr : string; const aNewStr : string; const aStartLine : Integer; const aEndLine : Integer; const aFilePath : string; out aLinesChanged : Integer; const aVerbose : Boolean = false ) : Boolean;
 
@@ -1855,6 +1873,217 @@ begin
 
     if aVerbose then
       WriteLn( 'SUCCESS: Unindented lines ', aStartLine, '-', aEndLine, ' by ', aSpaces, ' spaces in ', aFilePath );
+
+    Result.Success := true;
+  finally
+    lLines.Free;
+
+    if lOriginal <> NIL then
+      lOriginal.Free;
+  end;
+end;
+
+class function TStringOperations.CommentLines( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+Var
+  lLines    : TStringList;
+  lOriginal : TStringList;
+  lEncoding : TEncodingType;
+  i         : Integer;
+begin
+  Result.Success      := false;
+  Result.ErrorMessage := '';
+  Result.LinesChanged := 0;
+
+  if not FileExists( aFilePath ) then
+    begin
+      Result.ErrorMessage := 'File not found: ' + aFilePath;
+      Exit;
+    end;
+
+  if not TEncodingHelper.ReadFileWithRetry( aFilePath, lLines, lEncoding ) then
+    begin
+      Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
+      Exit;
+    end;
+
+  lOriginal := NIL;
+
+  try
+    if ( aStartLine < 1 ) or ( aStartLine > lLines.Count ) then
+      begin
+        Result.ErrorMessage := 'Start line ' + IntToStr( aStartLine ) + ' out of range (1-' + IntToStr( lLines.Count ) + ')';
+        Exit;
+      end;
+
+    if ( aEndLine < aStartLine ) or ( aEndLine > lLines.Count ) then
+      begin
+        Result.ErrorMessage := 'End line ' + IntToStr( aEndLine ) + ' out of range (' + IntToStr( aStartLine ) + '-' + IntToStr( lLines.Count ) + ')';
+        Exit;
+      end;
+
+    // Save original for diff
+    if aDiff then
+      begin
+        lOriginal := TStringList.Create;
+        lOriginal.Assign( lLines );
+      end;
+
+    // Comment lines: prepend // (0-based index)
+    for i := aStartLine - 1 to aEndLine - 1 do
+      lLines[ i ] := '//' + lLines[ i ];
+
+    Result.LinesChanged := aEndLine - aStartLine + 1;
+
+    // Show diff if requested
+    if aDiff and ( lOriginal <> NIL ) then
+      begin
+        WriteLn( '--- ', aFilePath, ' (original)' );
+        WriteLn( '+++ ', aFilePath, ' (commented)' );
+
+        for i := aStartLine - 1 to aEndLine - 1 do
+          begin
+            WriteLn( '- ', lOriginal[ i ] );
+            WriteLn( '+ ', lLines[ i ] );
+          end;
+      end;
+
+    if aDryRun then
+      begin
+        if aVerbose then
+          WriteLn( '[DRY-RUN] Would comment lines ', aStartLine, '-', aEndLine, ' in ', aFilePath );
+
+        Result.Success := true;
+        Exit;
+      end;
+
+    // Create backup if requested
+    if aBackup then
+      begin
+        if not CreateBackup( aFilePath ) then
+          begin
+            Result.ErrorMessage := 'Failed to create backup for: ' + aFilePath;
+            Exit;
+          end;
+      end;
+
+    // Write file
+    if not TEncodingHelper.WriteFileWithRetry( aFilePath, lLines, lEncoding ) then
+      begin
+        Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
+        Exit;
+      end;
+
+    if aVerbose then
+      WriteLn( 'SUCCESS: Commented lines ', aStartLine, '-', aEndLine, ' in ', aFilePath );
+
+    Result.Success := true;
+  finally
+    lLines.Free;
+
+    if lOriginal <> NIL then
+      lOriginal.Free;
+  end;
+end;
+
+class function TStringOperations.UncommentLines( const aFilePath : string; const aStartLine : Integer; const aEndLine : Integer; const aDryRun : Boolean = false; const aBackup : Boolean = false; const aDiff : Boolean = false; const aVerbose : Boolean = false ) : TOperationResult;
+Var
+  lLines    : TStringList;
+  lOriginal : TStringList;
+  lEncoding : TEncodingType;
+  lLine     : string;
+  i         : Integer;
+begin
+  Result.Success      := false;
+  Result.ErrorMessage := '';
+  Result.LinesChanged := 0;
+
+  if not FileExists( aFilePath ) then
+    begin
+      Result.ErrorMessage := 'File not found: ' + aFilePath;
+      Exit;
+    end;
+
+  if not TEncodingHelper.ReadFileWithRetry( aFilePath, lLines, lEncoding ) then
+    begin
+      Result.ErrorMessage := 'Failed to read file: ' + aFilePath;
+      Exit;
+    end;
+
+  lOriginal := NIL;
+
+  try
+    if ( aStartLine < 1 ) or ( aStartLine > lLines.Count ) then
+      begin
+        Result.ErrorMessage := 'Start line ' + IntToStr( aStartLine ) + ' out of range (1-' + IntToStr( lLines.Count ) + ')';
+        Exit;
+      end;
+
+    if ( aEndLine < aStartLine ) or ( aEndLine > lLines.Count ) then
+      begin
+        Result.ErrorMessage := 'End line ' + IntToStr( aEndLine ) + ' out of range (' + IntToStr( aStartLine ) + '-' + IntToStr( lLines.Count ) + ')';
+        Exit;
+      end;
+
+    // Save original for diff
+    if aDiff then
+      begin
+        lOriginal := TStringList.Create;
+        lOriginal.Assign( lLines );
+      end;
+
+    // Uncomment lines: remove leading // (0-based index)
+    // Always remove exactly '//' (2 chars) to ensure perfect round-trip with CommentLines
+    for i := aStartLine - 1 to aEndLine - 1 do
+      begin
+        lLine := lLines[ i ];
+
+        if Copy( lLine, 1, 2 ) = '//' then
+          lLines[ i ] := Copy( lLine, 3, MaxInt );
+      end;
+
+    Result.LinesChanged := aEndLine - aStartLine + 1;
+
+    // Show diff if requested
+    if aDiff and ( lOriginal <> NIL ) then
+      begin
+        WriteLn( '--- ', aFilePath, ' (original)' );
+        WriteLn( '+++ ', aFilePath, ' (uncommented)' );
+
+        for i := aStartLine - 1 to aEndLine - 1 do
+          begin
+            WriteLn( '- ', lOriginal[ i ] );
+            WriteLn( '+ ', lLines[ i ] );
+          end;
+      end;
+
+    if aDryRun then
+      begin
+        if aVerbose then
+          WriteLn( '[DRY-RUN] Would uncomment lines ', aStartLine, '-', aEndLine, ' in ', aFilePath );
+
+        Result.Success := true;
+        Exit;
+      end;
+
+    // Create backup if requested
+    if aBackup then
+      begin
+        if not CreateBackup( aFilePath ) then
+          begin
+            Result.ErrorMessage := 'Failed to create backup for: ' + aFilePath;
+            Exit;
+          end;
+      end;
+
+    // Write file
+    if not TEncodingHelper.WriteFileWithRetry( aFilePath, lLines, lEncoding ) then
+      begin
+        Result.ErrorMessage := 'Failed to write file: ' + aFilePath;
+        Exit;
+      end;
+
+    if aVerbose then
+      WriteLn( 'SUCCESS: Uncommented lines ', aStartLine, '-', aEndLine, ' in ', aFilePath );
 
     Result.Success := true;
   finally

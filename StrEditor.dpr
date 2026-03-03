@@ -8,6 +8,7 @@ Uses
   System.SysUtils
 , System.Classes
 , System.IOUtils
+, Winapi.Windows
 , StrEditor.Encoding
 , StrEditor.Operations
 , StrEditor.CommandLine
@@ -895,6 +896,90 @@ begin
         end;
       end;
 
+    ctCommentLines:
+      begin
+        if aParams.Verbose then
+          begin
+            if aParams.DryRun
+              then WriteLn( '[DRY-RUN] Commenting lines ' + IntToStr( aParams.StartLine ) + '-' + IntToStr( aParams.EndLine ) + ' in ' + aParams.FilePath )
+              else WriteLn( 'Commenting lines ' + IntToStr( aParams.StartLine ) + '-' + IntToStr( aParams.EndLine ) + ' in ' + aParams.FilePath );
+          end;
+
+        lChangeReport := NIL;
+
+        if TStrEditorSettings.Instance.ChangeReportEnabled and ( not aParams.DryRun ) then
+          begin
+            lOldContent := TBatchProcessor.GetLinesContent( aParams.FilePath, aParams.StartLine, aParams.EndLine );
+            lChangeReport := TChangeReport.Create( aParams.FilePath );
+            lChangeReport.BeginOperation( ctCommentLines, aParams.StartLine );
+            lChangeReport.SetOldContent( lOldContent );
+          end;
+
+        lResult := TStringOperations.CommentLines( aParams.FilePath, aParams.StartLine, aParams.EndLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.Verbose );
+
+        if lResult.Success then
+          begin
+            if not aParams.DryRun then
+              WriteLn( 'SUCCESS: Commented ' + IntToStr( lResult.LinesChanged ) + ' line(s) in ' + aParams.FilePath );
+
+            if lChangeReport <> NIL then
+              lChangeReport.EndOperation( true );
+
+            ExitCode := Ord( ecSuccess );
+            OutputChangeReport;
+          end
+        else begin
+               WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+               FreeAndNIL( lChangeReport );
+
+               if Pos( 'File not found', lResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecFileNotFound )
+                 else ExitCode := Ord( ecOperationFailed );
+             end;
+      end;
+
+    ctUncommentLines:
+      begin
+        if aParams.Verbose then
+          begin
+            if aParams.DryRun
+              then WriteLn( '[DRY-RUN] Uncommenting lines ' + IntToStr( aParams.StartLine ) + '-' + IntToStr( aParams.EndLine ) + ' in ' + aParams.FilePath )
+              else WriteLn( 'Uncommenting lines ' + IntToStr( aParams.StartLine ) + '-' + IntToStr( aParams.EndLine ) + ' in ' + aParams.FilePath );
+          end;
+
+        lChangeReport := NIL;
+
+        if TStrEditorSettings.Instance.ChangeReportEnabled and ( not aParams.DryRun ) then
+          begin
+            lOldContent := TBatchProcessor.GetLinesContent( aParams.FilePath, aParams.StartLine, aParams.EndLine );
+            lChangeReport := TChangeReport.Create( aParams.FilePath );
+            lChangeReport.BeginOperation( ctUncommentLines, aParams.StartLine );
+            lChangeReport.SetOldContent( lOldContent );
+          end;
+
+        lResult := TStringOperations.UncommentLines( aParams.FilePath, aParams.StartLine, aParams.EndLine, aParams.DryRun, aParams.Backup, aParams.Diff, aParams.Verbose );
+
+        if lResult.Success then
+          begin
+            if not aParams.DryRun then
+              WriteLn( 'SUCCESS: Uncommented ' + IntToStr( lResult.LinesChanged ) + ' line(s) in ' + aParams.FilePath );
+
+            if lChangeReport <> NIL then
+              lChangeReport.EndOperation( true );
+
+            ExitCode := Ord( ecSuccess );
+            OutputChangeReport;
+          end
+        else begin
+               WriteLn( 'ERROR: ' + lResult.ErrorMessage );
+               FreeAndNIL( lChangeReport );
+
+               if Pos( 'File not found', lResult.ErrorMessage ) > 0
+                 then ExitCode := Ord( ecFileNotFound )
+                 else ExitCode := Ord( ecOperationFailed );
+             end;
+      end;
+
     else begin
            TCommandLineParser.ShowError( 'Unknown command' );
            ExitCode := Ord( ecParameterError );
@@ -913,9 +998,32 @@ begin
         Exit;
       end;
 
+    // Signal-Restart: Named Event setzen um alle laufenden MCP-Instanzen zu beenden
+    if lParams.Command = ctSignalRestart then
+      begin
+        Var lEvent := OpenEvent( EVENT_MODIFY_STATE, FALSE, 'Local\StrEditorRestart' );
+
+        if lEvent <> 0 then
+          begin
+            SetEvent( lEvent );
+            CloseHandle( lEvent );
+            WriteLn( 'OK: Restart signal sent to all running MCP server instances.' );
+            ExitCode := Ord( ecSuccess );
+          end
+        else
+          begin
+            WriteLn( 'INFO: No running MCP server instances found.' );
+            ExitCode := Ord( ecSuccess );
+          end;
+
+        Exit;
+      end;
+
     // MCP-Server-Modus: TSR-Loop über stdin/stdout
     if lParams.Command = ctMCPServer then
       begin
+        TSessionLog.Instance.Mode := lmMCP;
+
         Var lMCPServer := TMCPServer.Create;
         try
           lMCPServer.Run;
@@ -926,6 +1034,16 @@ begin
         ExitCode := Ord( ecSuccess );
         Exit;
       end;
+
+    // CLI-Modus: Warnung für AI-Agenten ausgeben
+    WriteLn( ErrOutput, '' );
+    WriteLn( ErrOutput, '============================================================' );
+    WriteLn( ErrOutput, '  WARNING FOR AI AGENTS: Do NOT use StrEditor.exe directly!' );
+    WriteLn( ErrOutput, '  Use the MCP server ''StrEditor'' instead.' );
+    WriteLn( ErrOutput, '  Available MCP tools: str_replace_StrEditor,' );
+    WriteLn( ErrOutput, '  edit_file_StrEditor, show_file_StrEditor, etc.' );
+    WriteLn( ErrOutput, '============================================================' );
+    WriteLn( ErrOutput, '' );
 
     if lParams.ConfigFile <> '' then
       begin
@@ -1019,7 +1137,7 @@ begin
                 if lParams.Verbose then
                   WriteLn( 'Auto-deleting config file: ' + lParams.ConfigFile );
 
-                if DeleteFile( lParams.ConfigFile )
+                if System.SysUtils.DeleteFile( lParams.ConfigFile )
                   then WriteLn( 'Config file deleted successfully' )
                   else WriteLn( 'WARNING: Could not delete config file: ' + lParams.ConfigFile );
               end
@@ -1063,7 +1181,7 @@ begin
         if lParams.Verbose then
           WriteLn( 'Auto-deleting config file: ' + lParams.ConfigFile );
 
-        if DeleteFile( lParams.ConfigFile )
+        if System.SysUtils.DeleteFile( lParams.ConfigFile )
           then WriteLn( 'Config file deleted successfully' )
           else WriteLn( 'WARNING: Could not delete config file: ' + lParams.ConfigFile );
       end
