@@ -58,6 +58,8 @@ AUGMENT/
 
 # Build scripts (contain personal paths)
 Build-*.bat
+_do_release.bat
+_gh_release.bat
 
 # Mercurial files (keep Mercurial separate)
 .hg/
