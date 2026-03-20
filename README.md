@@ -28,6 +28,8 @@ StrEditor.exe --file "MyUnit.pas" --show --head 20
 
 **For Augment Agent users:** StrEditor automatically replaces the built-in `str-replace-editor` when installed in your PATH. See [DOC/INTEGRATION.md](DOC/INTEGRATION.md) for details.
 
+**For MCP users:** See [DOC/QUICKSTART.md](DOC/QUICKSTART.md) for the English MCP quick start and [DOC/QUICKSTART.de.md](DOC/QUICKSTART.de.md) for the German version.
+
 ---
 
 ## 📝 Description
@@ -178,6 +180,8 @@ StrEditor.exe --file "test.pas" --old-str "interface" --new-str "interface // Li
 ## 📚 Documentation
 
 For complete documentation, see:
+- [DOC/QUICKSTART.md](DOC/QUICKSTART.md) - MCP quick start (English)
+- [DOC/QUICKSTART.de.md](DOC/QUICKSTART.de.md) - MCP quick start (Deutsch)
 - [DOC/INTEGRATION.md](DOC/INTEGRATION.md) - Full integration guide
 - [DOC/AGENT-COOKBOOK.md](DOC/AGENT-COOKBOOK.md) - Practical recipes for common tasks **[NEW in v1.8.0]**
 - [CHANGELOG.md](CHANGELOG.md) - Version history

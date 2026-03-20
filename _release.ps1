@@ -1,10 +1,17 @@
+$ErrorActionPreference = 'Stop'
+
 # Release-Package aktualisieren
 Copy-Item -Path 'C:\Delphi XE16\bin\StrEditor.exe' -Destination 'Release-Package\' -Force
 Copy-Item -Path 'README.md' -Destination 'Release-Package\' -Force
+Copy-Item -Path 'README.de.md' -Destination 'Release-Package\' -Force
+Copy-Item -Path 'MCP-SERVER.md' -Destination 'Release-Package\' -Force
 Copy-Item -Path 'CHANGELOG.md' -Destination 'Release-Package\' -Force
 Copy-Item -Path 'LICENSE.md' -Destination 'Release-Package\' -Force
+Copy-Item -Path 'DOC\README.md' -Destination 'Release-Package\DOC\' -Force
 Copy-Item -Path 'DOC\INTEGRATION.md' -Destination 'Release-Package\DOC\' -Force
 Copy-Item -Path 'DOC\AGENT-COOKBOOK.md' -Destination 'Release-Package\DOC\' -Force
+Copy-Item -Path 'DOC\QUICKSTART.md' -Destination 'Release-Package\DOC\' -Force
+Copy-Item -Path 'DOC\QUICKSTART.de.md' -Destination 'Release-Package\DOC\' -Force
 Write-Host 'Release-Package aktualisiert' -ForegroundColor Green
 
 # ZIP erstellen
