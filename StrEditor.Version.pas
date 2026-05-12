@@ -4,8 +4,8 @@ interface
 
 Const
   cStrEditorName    = 'StrEditor';
-  cStrEditorVersion = '1.10.4';
-  cStrEditorBuild   = '2026-03-03';
+  cStrEditorVersion = '1.10.5';
+  cStrEditorBuild   = '2026-05-12';
 
 implementation
 

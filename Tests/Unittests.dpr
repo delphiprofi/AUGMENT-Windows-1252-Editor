@@ -22,6 +22,7 @@ Uses
 , TestStrEditor.V180
 , TestStrEditor.BatchProcessor
 , TestStrEditor.ChangeReport
+, TestStrEditor.MCP
 ;
 
 { keep comment here to protect the following conditional from being removed by the IDE when adding a unit }

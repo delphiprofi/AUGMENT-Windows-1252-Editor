@@ -62,8 +62,17 @@ Type
 
       procedure SendResponse( const aResponse : TJSONObject );
       function  ReadRequest : TJSONObject;
+
+      function  ReadLineBytesFromHandle( aHandle : THandle; out aBytes : TBytes ) : Boolean;
+      function  ReadExactBytesFromHandle( aHandle : THandle; aCount : Integer; out aBytes : TBytes ) : Boolean;
     public
       procedure Run;
+
+      // Testbare Decode-Funktion: bildet das aktuelle Verhalten von Delphi's
+      // ReadLn(Input)/Read(Input,…) auf einem Byte-Puffer ab. Wird produktiv
+      // (noch) nicht verwendet — existiert für Unittests, damit der Pipe-→-String-
+      // Decode-Schritt unabhängig von stdin getestet werden kann.
+      class function DecodeIncomingBytes( const aBytes : TBytes ) : string;
   end;
 
 implementation
@@ -184,6 +193,64 @@ begin
   end;
 end;
 
+function TMCPServer.ReadLineBytesFromHandle( aHandle : THandle; out aBytes : TBytes ) : Boolean;
+Var
+  lByte : Byte;
+  lRead : DWORD;
+  lLen  : Integer;
+begin
+  SetLength( aBytes, 0 );
+  lLen   := 0;
+  Result := false;
+
+  while true do
+    begin
+      if not Winapi.Windows.ReadFile( aHandle, lByte, 1, lRead, NIL ) then
+        Exit( lLen > 0 );
+
+      if lRead = 0 then // EOF
+        Exit( lLen > 0 );
+
+      if lByte = $0A then // LF — Zeilenende
+        Exit( true );
+
+      if lByte = $0D then // CR — vor LF ignorieren
+        Continue;
+
+      Inc( lLen );
+      SetLength( aBytes, lLen );
+      aBytes[ lLen - 1 ] := lByte;
+    end;
+end;
+
+function TMCPServer.ReadExactBytesFromHandle( aHandle : THandle; aCount : Integer; out aBytes : TBytes ) : Boolean;
+Var
+  lRead  : DWORD;
+  lTotal : Integer;
+begin
+  SetLength( aBytes, aCount );
+  lTotal := 0;
+
+  while lTotal < aCount do
+    begin
+      if not Winapi.Windows.ReadFile( aHandle, aBytes[ lTotal ], DWORD( aCount - lTotal ), lRead, NIL ) then
+        begin
+          SetLength( aBytes, lTotal );
+          Exit( false );
+        end;
+
+      if lRead = 0 then // EOF
+        begin
+          SetLength( aBytes, lTotal );
+          Exit( false );
+        end;
+
+      Inc( lTotal, Integer( lRead ) );
+    end;
+
+  Result := true;
+end;
+
 function TMCPServer.ReadRequest : TJSONObject;
   function ParseRequestEnvelope( const aJson : string ) : TJSONObject;
   Var
@@ -227,18 +294,25 @@ function TMCPServer.ReadRequest : TJSONObject;
     end;
   end;
 Var
+  lStdIn         : THandle;
+  lLineBytes     : TBytes;
+  lHeaderBytes   : TBytes;
+  lBodyBytes     : TBytes;
   lLine          : string;
-  lHeaderLine    : string;
   lContentLength : Integer;
   lColonPos      : Integer;
   lBody          : string;
-  i              : Integer;
 begin
   Result := NIL;
 
   // Unterstützt zwei Transport-Formate:
   // 1) Content-Length framing (MCP stdio default)
   // 2) Legacy JSON-pro-Line (NDJSON)
+  //
+  // Eingehende Bytes werden NICHT über Delphi's TextFile-Input gelesen, da das
+  // implizit per DefaultSystemCodePage (CP1252) dekodieren würde. JSON-Spec
+  // verlangt UTF-8, deshalb lesen wir rohe Bytes von STD_INPUT_HANDLE und
+  // konvertieren zentral via DecodeIncomingBytes (TEncoding.UTF8).
   try
     if fPendingRequests.Count > 0 then
       begin
@@ -247,24 +321,27 @@ begin
         Exit;
       end;
 
+    lStdIn := GetStdHandle( STD_INPUT_HANDLE );
+
+    if ( lStdIn = 0 ) or ( lStdIn = INVALID_HANDLE_VALUE ) then
+      Exit;
+
     while true do
       begin
-        if EOF( Input ) then
+        if not ReadLineBytesFromHandle( lStdIn, lLineBytes ) then
           Exit;
 
-        ReadLn( lLine );
-        lLine := Trim( lLine );
+        // Header sind reines ASCII (RFC). UTF-8-Decode ist hier identisch.
+        lLine := Trim( DecodeIncomingBytes( lLineBytes ) );
 
-        // Leere Zeilen ignorieren
         if lLine = '' then
           Continue;
 
-        // Content-Length framing erkannt
         if SameText( Copy( lLine, 1, 15 ), 'Content-Length:' ) then
           begin
             fUseContentLengthTransport := true;
             lContentLength := 0;
-            lColonPos := Pos( ':', lLine );
+            lColonPos      := Pos( ':', lLine );
 
             if lColonPos > 0 then
               lContentLength := StrToIntDef( Trim( Copy( lLine, lColonPos + 1, MaxInt ) ), 0 );
@@ -273,24 +350,14 @@ begin
               Exit;
 
             // Restliche Header bis zur Leerzeile lesen
-            while not EOF( Input ) do
-              begin
-                ReadLn( lHeaderLine );
+            while ReadLineBytesFromHandle( lStdIn, lHeaderBytes ) do
+              if Trim( DecodeIncomingBytes( lHeaderBytes ) ) = '' then
+                Break;
 
-                if Trim( lHeaderLine ) = '' then
-                  Break;
-              end;
+            if not ReadExactBytesFromHandle( lStdIn, lContentLength, lBodyBytes ) then
+              Exit;
 
-            SetLength( lBody, lContentLength );
-            for i := 1 to lContentLength do
-              begin
-                if EOF( Input ) then
-                  Break;
-
-                Read( Input, lBody[ i ] );
-              end;
-
-            lBody := Trim( lBody );
+            lBody := Trim( DecodeIncomingBytes( lBodyBytes ) );
 
             if lBody = '' then
               Exit;
@@ -299,7 +366,7 @@ begin
             Exit;
           end;
 
-        // Fallback: Legacy JSON-pro-Line
+        // Fallback: Legacy JSON-pro-Line — die gelesene Zeile ist der Body
         fUseContentLengthTransport := false;
         Result := ParseRequestEnvelope( lLine );
         Exit;
@@ -402,6 +469,18 @@ begin
   Result.AddPair( 'type', 'object' );
   Result.AddPair( 'properties', aProperties );
   Result.AddPair( 'required', aRequired );
+end;
+
+class function TMCPServer.DecodeIncomingBytes( const aBytes : TBytes ) : string;
+begin
+  // MCP/JSON-Spec: stdin-Body kommt als UTF-8. Deshalb dürfen wir hier NICHT
+  // die DefaultSystemCodePage (CP1252 auf deutschen Systemen) verwenden — das
+  // würde rohe UTF-8-Multibytes als Mojibake interpretieren (c3 a4 -> "Ã¤"
+  // statt "ä"). Symmetrisch zur Schreibseite (SendResponse) wird hier
+  // ausdrücklich UTF-8 dekodiert.
+  if Length( aBytes ) = 0
+    then Result := ''
+    else Result := TEncoding.UTF8.GetString( aBytes );
 end;
 
 function TMCPServer.ResolvePath( const aPath : string ) : string;

@@ -15,7 +15,7 @@ Copy-Item -Path 'DOC\QUICKSTART.de.md' -Destination 'Release-Package\DOC\' -Forc
 Write-Host 'Release-Package aktualisiert' -ForegroundColor Green
 
 # ZIP erstellen
-$zipName = 'StrEditor-v1.10.4-Windows-x86.zip'
+$zipName = 'StrEditor-v1.10.5-Windows-x86.zip'
 if (Test-Path $zipName) { Remove-Item $zipName -Force }
 Compress-Archive -Path 'Release-Package\*' -DestinationPath $zipName
 Write-Host "ZIP erstellt: $zipName" -ForegroundColor Green

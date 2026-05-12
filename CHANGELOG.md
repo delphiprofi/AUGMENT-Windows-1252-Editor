@@ -4,6 +4,19 @@ All notable changes to StrEditor will be documented in this file.
 
 ---
 
+## [1.10.5] - 2026-05-12
+
+### Fixed
+- **UTF-8 input on MCP stdin (Mojibake in CP1252 files)**: `ReadRequest` previously read stdin via Delphi's `TextFile`-style `ReadLn(Input,…)`, which decodes bytes using `DefaultSystemCodePage` (CP1252 on German Windows). JSON-RPC over MCP stdio is UTF-8 by spec, so raw UTF-8 multibyte sequences (e.g. `c3 a4` for `ä`) were misinterpreted as two CP1252 characters (`Ã¤`) and ended up as Mojibake in CP1252 source files.
+  - `ReadRequest` now reads raw bytes from `STD_INPUT_HANDLE` via new helpers `ReadLineBytesFromHandle` / `ReadExactBytesFromHandle` and decodes them via `TEncoding.UTF8.GetString` (symmetric to the existing write side in `SendResponse`).
+  - New testable seam `TMCPServer.DecodeIncomingBytes(TBytes) : string`.
+  - Latent bug since the introduction of MCP support; only triggered by clients that send raw UTF-8 instead of `\uXXXX` JSON escapes.
+
+### Added
+- **Regression tests** (`Tests\TestStrEditor.MCP.pas`, fixture `TTestMCPDecoding`): empty input, pure ASCII, ASCII-escaped umlaut, raw UTF-8 umlaut → U+00E4, and raw-UTF-8 → CP1252 byte roundtrip.
+
+---
+
 ## [1.10.4] - 2026-03-03
 
 ### Fixed
